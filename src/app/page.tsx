@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Recipe } from "./types/recipe";
-import { styles } from "./styles/recipe.styles";
+import { useState } from "react";
 import { logger } from "./lib/logger";
+import { styles } from "./styles/recipe.styles";
+import { Recipe } from "./types/recipe";
 
 export default function HomePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -29,7 +29,10 @@ export default function HomePage() {
       const form = new FormData();
       form.append("image", file);
       logger.debug("Sending image to recipe API");
-      const res = await fetch("/api/recipes", { method: "POST", body: form });
+      const res = await fetch("/api/recipes", {
+        method: "POST",
+        body: form,
+      });
       const data = await res.json();
       logger.debug("Recipe API response received", { status: res.status });
 
@@ -54,9 +57,7 @@ export default function HomePage() {
         </div>
         <div style={styles.navButtons}>
           <Link href="/recipes" style={styles.linkStyle}>
-            <button style={styles.navButton}>
-              View Recipes
-            </button>
+            <button style={styles.navButton}>View Recipes</button>
           </Link>
         </div>
       </div>
@@ -106,11 +107,17 @@ export default function HomePage() {
           }}
           onMouseEnter={(e) => {
             if (!loading) {
-              Object.assign((e.target as HTMLButtonElement).style, styles.submitButtonHover);
+              Object.assign(
+                (e.target as HTMLButtonElement).style,
+                styles.submitButtonHover
+              );
             }
           }}
           onMouseLeave={(e) => {
-            Object.assign((e.target as HTMLButtonElement).style, styles.submitButtonDefault);
+            Object.assign(
+              (e.target as HTMLButtonElement).style,
+              styles.submitButtonDefault
+            );
           }}
         >
           {loading ? "Processing..." : "Upload & Parse"}

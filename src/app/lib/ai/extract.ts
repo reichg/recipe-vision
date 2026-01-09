@@ -1,6 +1,6 @@
 import { RecipeSchema, type RecipeFromSchema } from "../db/schema";
-import { getGeminiClient } from "./gemini";
 import { logger } from "../logger";
+import { getGeminiClient } from "./gemini";
 
 export async function recipeFromOcrText(
   ocrText: string

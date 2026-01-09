@@ -1,5 +1,6 @@
+import { Lora, Playfair_Display } from "next/font/google";
 import type { ReactNode } from "react";
-import { Playfair_Display, Lora } from "next/font/google";
+import { DatabaseHealthIndicator } from "./components/DatabaseHealthIndicator";
 import { layoutStyles } from "./styles/layout.styles";
 
 const playfair = Playfair_Display({
@@ -16,7 +17,10 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${playfair.variable} ${lora.variable}`}>
-      <body style={layoutStyles.body}>{children}</body>
+      <body style={layoutStyles.body}>
+        {children}
+        <DatabaseHealthIndicator />
+      </body>
     </html>
   );
 }

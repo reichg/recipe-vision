@@ -1,8 +1,8 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/app/lib/prisma";
-import { ocrSpaceExtractText } from "@/app/lib/ai/ocr";
 import { recipeFromOcrText } from "@/app/lib/ai/extract";
+import { ocrSpaceExtractText } from "@/app/lib/ai/ocr";
 import { logger } from "@/app/lib/logger";
+import { prisma } from "@/app/lib/prisma";
+import { NextRequest, NextResponse } from "next/server";
 
 export async function GET() {
   const recipes = await prisma.recipe.findMany({
@@ -16,7 +16,7 @@ export async function GET() {
 
 export const runtime = "nodejs"; // important for file/form handling stability
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
     const file = form.get("image");
@@ -42,7 +42,7 @@ export async function POST(req: Request) {
     const saved = await prisma.recipe.create({
       data: {
         title: recipe.title,
-        json: recipe,
+        json: recipe
       },
     });
     return NextResponse.json({ id: saved.id, recipe: saved.json });
