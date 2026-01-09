@@ -2,9 +2,10 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Recipe } from "./types/recipe";
 import { styles } from "./styles/recipe.styles";
-import { logger } from "./utils/logger";
+import { logger } from "./lib/logger";
 
 export default function HomePage() {
   const [file, setFile] = useState<File | null>(null);
@@ -28,7 +29,7 @@ export default function HomePage() {
       const form = new FormData();
       form.append("image", file);
       logger.debug("Sending image to recipe API");
-      const res = await fetch("/api/recipe", { method: "POST", body: form });
+      const res = await fetch("/api/recipes", { method: "POST", body: form });
       const data = await res.json();
       logger.debug("Recipe API response received", { status: res.status });
 
@@ -44,10 +45,21 @@ export default function HomePage() {
 
   return (
     <main style={styles.main}>
-      <h1 style={styles.pageTitle}>Recipe Parser</h1>
-      <p style={styles.pageSubtitle}>
-        Transform your recipe photos into structured data
-      </p>
+      <div style={styles.headerContainer}>
+        <div>
+          <h1 style={styles.pageTitle}>Recipe Parser</h1>
+          <p style={styles.pageSubtitle}>
+            Transform your recipe photos into structured data
+          </p>
+        </div>
+        <div style={styles.navButtons}>
+          <Link href="/recipes" style={styles.linkStyle}>
+            <button style={styles.navButton}>
+              View Recipes
+            </button>
+          </Link>
+        </div>
+      </div>
 
       <form onSubmit={onSubmit} style={styles.form}>
         <input
@@ -93,15 +105,12 @@ export default function HomePage() {
             ...(loading ? styles.submitButtonLoading : {}),
           }}
           onMouseEnter={(e) => {
-            if (!loading)
-              (e.target as HTMLButtonElement).style.backgroundColor = "#b8956f";
-            (e.target as HTMLButtonElement).style.boxShadow =
-              "0 6px 20px rgba(201, 168, 135, 0.3)";
+            if (!loading) {
+              Object.assign((e.target as HTMLButtonElement).style, styles.submitButtonHover);
+            }
           }}
           onMouseLeave={(e) => {
-            (e.target as HTMLButtonElement).style.backgroundColor = "#c9a887";
-            (e.target as HTMLButtonElement).style.boxShadow =
-              "0 4px 15px rgba(201, 168, 135, 0.2)";
+            Object.assign((e.target as HTMLButtonElement).style, styles.submitButtonDefault);
           }}
         >
           {loading ? "Processing..." : "Upload & Parse"}

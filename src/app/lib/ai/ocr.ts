@@ -8,7 +8,7 @@ type OcrSpaceResponse = {
   ParsedResults?: OcrSpaceParsedResult[];
 };
 
-import { logger } from "./utils/logger";
+import { logger } from "../logger";
 
 export async function ocrSpaceExtractText(file: File): Promise<string> {
   const apiKey = process.env.OCRSPACE_API_KEY;

@@ -272,4 +272,79 @@ export const styles = {
   allergenDivider: {
     marginBottom: 12,
   } as CSSProperties,
+
+  // Navigation and layout styles
+  headerContainer: {
+    display: "flex",
+    alignItems: "baseline",
+    justifyContent: "space-between",
+    gap: 12,
+  } as CSSProperties,
+
+  navButtons: {
+    display: "flex",
+    gap: 12,
+  } as CSSProperties,
+
+  navButton: {
+    padding: "8px 12px",
+    borderRadius: 10,
+    border: `1px solid ${colors.border}`,
+    background: "transparent",
+    cursor: "pointer",
+    fontWeight: 600,
+  } as CSSProperties,
+
+  recipesGrid: {
+    display: "grid",
+    gap: 16,
+  } as CSSProperties,
+
+  recipeCard: {
+    borderRadius: 12,
+    border: `1px solid ${colors.border}`,
+    padding: 16,
+    background: "white",
+  } as CSSProperties,
+
+  recipeCardContent: {
+    display: "flex",
+    gap: 16,
+    alignItems: "flex-start",
+  } as CSSProperties,
+
+  recipeCardMain: {
+    flex: 1,
+  } as CSSProperties,
+
+  recipeCardTitle: {
+    margin: 0,
+    fontFamily: "var(--font-playfair)",
+    color: colors.primary,
+  } as CSSProperties,
+
+  recipeCardMetrics: {
+    marginTop: 12,
+    display: "flex",
+    gap: 12,
+    flexWrap: "wrap",
+  } as CSSProperties,
+
+  errorMessage: {
+    color: "crimson",
+  } as CSSProperties,
+
+  linkStyle: {
+    textDecoration: "none",
+  } as CSSProperties,
+
+  submitButtonHover: {
+    backgroundColor: "#b8956f",
+    boxShadow: "0 6px 20px rgba(201, 168, 135, 0.3)",
+  } as CSSProperties,
+
+  submitButtonDefault: {
+    backgroundColor: colors.accent,
+    boxShadow: "0 4px 15px rgba(201, 168, 135, 0.2)",
+  } as CSSProperties,
 };

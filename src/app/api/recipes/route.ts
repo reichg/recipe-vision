@@ -1,7 +1,18 @@
 import { NextResponse } from "next/server";
-import { ocrSpaceExtractText } from "@/app/ocrspace";
-import { recipeFromOcrText } from "@/app/parseRecipe";
-import { logger } from "@/app/utils/logger";
+import { prisma } from "@/app/lib/prisma";
+import { ocrSpaceExtractText } from "@/app/lib/ai/ocr";
+import { recipeFromOcrText } from "@/app/lib/ai/extract";
+import { logger } from "@/app/lib/logger";
+
+export async function GET() {
+  const recipes = await prisma.recipe.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 50,
+    select: { id: true, title: true, createdAt: true },
+  });
+
+  return NextResponse.json({ recipes });
+}
 
 export const runtime = "nodejs"; // important for file/form handling stability
 
@@ -28,7 +39,13 @@ export async function POST(req: Request) {
     const ocrText = await ocrSpaceExtractText(file);
     const recipe = await recipeFromOcrText(ocrText);
     logger.info("Recipe parsed successfully", { title: recipe.title });
-    return NextResponse.json({ recipe });
+    const saved = await prisma.recipe.create({
+      data: {
+        title: recipe.title,
+        json: recipe,
+      },
+    });
+    return NextResponse.json({ id: saved.id, recipe: saved.json });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

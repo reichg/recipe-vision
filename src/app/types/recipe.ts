@@ -6,6 +6,7 @@ export type RecipeIngredient = {
 };
 
 export type Recipe = {
+  id: string;            // database ID
   title: string;
   description?: string;
 
