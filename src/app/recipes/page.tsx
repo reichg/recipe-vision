@@ -28,11 +28,6 @@ export default function RecipesPage() {
             Recent parsed recipes from the service
           </p>
         </div>
-        <div style={styles.navButtons}>
-          <Link href="/" style={{ textDecoration: "none" }}>
-            <button style={styles.navButton}>Parse Recipe</button>
-          </Link>
-        </div>
       </div>
 
       {loading && <p>Loading...</p>}
