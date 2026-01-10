@@ -1,8 +1,8 @@
 // lib/db-ready.ts
 import { prisma } from "../prisma";
 
-const MAX_RETRIES = 10;
-const BASE_DELAY_MS = 5000;
+const MAX_RETRIES = 5;
+const BASE_DELAY_MS = 1000;
 
 export async function waitForDatabaseReady() {
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
