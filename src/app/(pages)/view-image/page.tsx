@@ -3,13 +3,27 @@
 import { styles } from "@/app/styles/view-image.styles";
 import Image from "next/image";
 import { useState } from "react";
-import { logger } from "../lib/logger";
+import { logger } from "../../lib/logger";
 
 export default function ViewS3ImagePage() {
   const [imageKey, setImageKey] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Parse S3 URI and extract object key
+  const parseS3Uri = (input: string): string => {
+    const trimmed = input.trim();
+
+    // Check if it's an S3 URI (s3://bucket-name/object-key)
+    const s3UriMatch = trimmed.match(/^s3:\/\/[^/]+\/(.+)$/);
+    if (s3UriMatch) {
+      return s3UriMatch[1];
+    }
+
+    // Return as-is if not an S3 URI
+    return trimmed;
+  };
 
   const handleLoadImage = async () => {
     setError(null);
@@ -21,11 +35,14 @@ export default function ViewS3ImagePage() {
       return;
     }
 
+    // Parse S3 URI if provided
+    const parsedKey = parseS3Uri(imageKey);
+
     setLoading(true);
     try {
-      logger.debug("Fetching image from S3", { key: imageKey });
+      logger.debug("Fetching image from S3", { key: parsedKey });
       const res = await fetch(
-        `/api/view-image?key=${encodeURIComponent(imageKey)}`
+        `/api/view-image?key=${encodeURIComponent(parsedKey)}`
       );
       const data = await res.json();
 
@@ -59,7 +76,7 @@ export default function ViewS3ImagePage() {
             <label style={styles.label}>S3 Object Key</label>
             <input
               type="text"
-              placeholder="recipes/1234567890-image.jpg"
+              placeholder="recipes/1234567890-image.jpg or s3://bucket-name/recipes/image.jpg"
               value={imageKey}
               onChange={(e) => setImageKey(e.target.value)}
               onKeyPress={(e) => {
@@ -69,7 +86,10 @@ export default function ViewS3ImagePage() {
               }}
               style={styles.input}
             />
-            <p style={styles.hint}>Example: recipes/my-recipe-image.jpg</p>
+            <p style={styles.hint}>
+              Example: recipes/my-recipe-image.jpg or
+              s3://bucket-name/recipes/my-recipe-image.jpg
+            </p>
           </div>
 
           <button
@@ -139,7 +159,9 @@ export default function ViewS3ImagePage() {
               <div style={styles.metadataPanel}>
                 <div style={styles.metadataRow}>
                   <span style={styles.metadataLabel}>S3 Key:</span>
-                  <code style={styles.metadataValue}>{imageKey}</code>
+                  <code style={styles.metadataValue}>
+                    {parseS3Uri(imageKey)}
+                  </code>
                 </div>
                 <div style={styles.metadataRow}>
                   <span style={styles.metadataLabel}>URL:</span>

@@ -1,8 +1,8 @@
 import { Lora, Playfair_Display } from "next/font/google";
 import type { ReactNode } from "react";
-import { DatabaseHealthIndicator } from "./components/DatabaseHealthIndicator";
-import Navbar from "./components/Navbar";
-import { layoutStyles } from "./styles/layout.styles";
+import { DatabaseHealthIndicator } from "../components/DatabaseHealthIndicator";
+import Navbar from "../components/Navbar";
+import { layoutStyles } from "../styles/layout.styles";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],

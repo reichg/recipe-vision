@@ -16,7 +16,7 @@ export default function HomePage() {
         </p>
 
         <div style={styles.ctaContainer}>
-          <Link href="/parse" style={styles.primaryButton}>
+          <Link href="/upload" style={styles.primaryButton}>
             Start Parsing Recipes
           </Link>
           <Link href="/recipes" style={styles.secondaryButton}>
@@ -71,6 +71,7 @@ export default function HomePage() {
             <div style={styles.stepNumber}>3</div>
             <p style={styles.stepText}>View structured recipe</p>
           </div>
+          <div style={{ ...styles.stepArrow, visibility: "hidden" }}>→</div>
         </div>
       </div>
     </main>

@@ -147,5 +147,6 @@ export const styles: { [key: string]: CSSProperties } = {
     fontSize: "2rem",
     color: "#667eea",
     fontWeight: 700,
-  },
+    flexShrink: 0,
+  } as CSSProperties & { "@media (max-width: 768px)": CSSProperties },
 };

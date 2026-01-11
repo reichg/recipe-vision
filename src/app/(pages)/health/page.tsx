@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import styles from '../styles/healthPage.styles';
+import styles from '../../styles/healthPage.styles';
 
 const HealthPage = () => {
   const [status, setStatus] = useState<'healthy' | 'unhealthy' | 'unknown'>('unknown');
