@@ -1,11 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
 import Link from "next/link";
-import { styles } from "../../styles/recipe.styles";
-import type { Recipe } from "../../types/recipe";
+import { useParams } from "next/navigation";
+import { useEffect, useState } from "react";
+import type { Recipe } from "../../../models/recipe";
+import { styles } from "../../../styles/recipe.styles";
 
 export default function RecipeDetailPage() {
   const params = useParams();
@@ -58,7 +58,19 @@ export default function RecipeDetailPage() {
         </div>
         <div style={styles.navButtons}>
           <Link href="/recipes" style={{ textDecoration: "none" }}>
-            <button style={styles.navButton}>Back to Recipes</button>
+            <button
+              style={styles.navButton}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = "#d4a574";
+                e.currentTarget.style.color = "white";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "white";
+                e.currentTarget.style.color = "#d4a574";
+              }}
+            >
+              ← Back to Recipes
+            </button>
           </Link>
         </div>
       </div>
