@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     if (!(file instanceof File)) {
       return NextResponse.json(
         { error: "Missing 'image' file field in multipart/form-data" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
     if (!file.type.startsWith("image/")) {
       return NextResponse.json(
         { error: "Uploaded file must be an image" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -85,7 +85,7 @@ export async function DELETE(req: NextRequest) {
     if (!Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json(
         { error: "Missing or invalid 'ids' array" },
-        { status: 400 }
+        { status: 400 },
       );
     }
 

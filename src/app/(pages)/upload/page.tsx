@@ -39,6 +39,13 @@ export default function ParsePage() {
       return;
     }
 
+    // Check file size for OCR limit (1024 KB)
+    if (file.size > 1024 * 1024) {
+      setError(`Selected image '${file.name}' is too large (max 1024 KB).`);
+      setTimeout(() => setError(null), 4000);
+      return;
+    }
+
     try {
       const form = new FormData();
       form.append("image", file);
@@ -66,6 +73,17 @@ export default function ParsePage() {
     if (files.length === 0) {
       setError("Pick at least one image first.");
       setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    // Check all file sizes before upload
+    const oversizedFiles = files.filter((f) => f.size > 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      setError(
+        `The following image${oversizedFiles.length > 1 ? "s are" : " is"} too large (max 1024 KB):\n` +
+          oversizedFiles.map((f) => `- ${f.name}`).join("\n"),
+      );
+      setTimeout(() => setError(null), 5000);
       return;
     }
 
@@ -109,7 +127,7 @@ export default function ParsePage() {
       }
 
       setS3UploadSuccess(
-        `Successfully uploaded ${successCount} of ${files.length} images!`
+        `Successfully uploaded ${successCount} of ${files.length} images!`,
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
@@ -130,18 +148,16 @@ export default function ParsePage() {
           <div style={popupStyles.popup}>
             <div style={popupStyles.icon}>✓</div>
             <h2 style={popupStyles.title}>Upload Successful!</h2>
-            <p style={popupStyles.message}>
-              Your image has been uploaded to S3
-            </p>
+            <p style={popupStyles.message}>Your image has been uploaded</p>
             <p style={popupStyles.url}>{s3UploadSuccess}</p>
           </div>
         </div>
       )}
       <div style={styles.headerContainer}>
         <div>
-          <h1 style={styles.pageTitle}>S3 Uploader</h1>
+          <h1 style={styles.pageTitle}>Uploader</h1>
           <p style={styles.pageSubtitle}>
-            Upload to S3 so the image can be processed.
+            Upload images so they can be processed.
           </p>
         </div>
       </div>
@@ -166,6 +182,21 @@ export default function ParsePage() {
               multiple
               onChange={(e) => {
                 const selectedFiles = Array.from(e.target.files || []);
+                // Check for oversized files immediately
+                const oversizedFiles = selectedFiles.filter(
+                  (f) => f.size > 1024 * 1024,
+                );
+                if (oversizedFiles.length > 0) {
+                  setError(
+                    `The following image${oversizedFiles.length > 1 ? "s are" : " is"} too large (max 1024 KB):\n` +
+                      oversizedFiles.map((f) => `- ${f.name}`).join("\n"),
+                  );
+                  setTimeout(() => setError(null), 5000);
+                  setFiles([]);
+                  setFile(null);
+                  setPreviews([]);
+                  return;
+                }
                 setFiles(selectedFiles);
                 setFile(selectedFiles[0] || null);
                 setS3UploadSuccess(null);
@@ -260,8 +291,8 @@ export default function ParsePage() {
             {uploadedToS3 && uploadProgress
               ? `Uploading ${uploadProgress.current}/${uploadProgress.total}...`
               : uploadedToS3
-              ? "Uploading to S3..."
-              : `Upload ${files.length > 0 ? files.length : ""} to S3`}
+                ? "Uploading..."
+                : `Upload ${files.length > 0 ? files.length : ""}`}
           </button>
         </div>
       </form>
