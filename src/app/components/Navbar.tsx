@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import styles from "../styles/navbar.styles";
+import styles from "./Navbar.module.css";
 
 const navItems = [
   { href: "/", label: "Home" },
@@ -14,26 +13,17 @@ const navItems = [
 
 const Navbar = () => {
   const router = useRouter();
-  const [hovered, setHovered] = useState<number | null>(null);
+
   return (
-    <nav style={styles.navbar}>
-      <div style={styles.logo} onClick={() => router.push("/")}>
+    <nav className={styles.navbar}>
+      <div className={styles.logo} onClick={() => router.push("/")}>
         Recipe Vision
       </div>
 
-      <ul style={styles.navLinks}>
-        {navItems.map((item, idx) => (
+      <ul className={styles.navLinks}>
+        {navItems.map((item) => (
           <li key={item.href}>
-            <Link
-              href={item.href}
-              style={
-                hovered === idx
-                  ? { ...styles.link, ...styles.linkHover }
-                  : styles.link
-              }
-              onMouseEnter={() => setHovered(idx)}
-              onMouseLeave={() => setHovered(null)}
-            >
+            <Link href={item.href} className={styles.link}>
               {item.label}
             </Link>
           </li>

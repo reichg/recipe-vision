@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import type { Recipe } from "../../../models/recipe";
-import { styles } from "../../../styles/recipe.styles";
+import styles from "../recipe.module.css";
 
 export default function RecipeDetailPage() {
   const params = useParams();
@@ -30,53 +29,41 @@ export default function RecipeDetailPage() {
 
   if (loading)
     return (
-      <main style={styles.main}>
+      <main className={styles.main}>
         <p>Loading...</p>
       </main>
     );
   if (error)
     return (
-      <main style={styles.main}>
-        <p style={styles.errorMessage}>{error}</p>
+      <main className={styles.main}>
+        <p className={styles.errorMessage}>{error}</p>
       </main>
     );
   if (!recipe)
     return (
-      <main style={styles.main}>
+      <main className={styles.main}>
         <p>Recipe not found</p>
       </main>
     );
 
   return (
-    <main style={styles.main}>
-      <div style={styles.headerContainer}>
+    <main className={styles.main}>
+      <div className={styles.headerContainer}>
         <div>
-          <h1 style={styles.pageTitle}>{recipe.title}</h1>
+          <h1 className={styles.pageTitle}>{recipe.title}</h1>
           {recipe.description && (
-            <p style={styles.pageSubtitle}>{recipe.description}</p>
+            <p className={styles.pageSubtitle}>{recipe.description}</p>
           )}
         </div>
-        <div style={styles.navButtons}>
-          <Link href="/recipes" style={{ textDecoration: "none" }}>
-            <button
-              style={styles.navButton}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#d4a574";
-                e.currentTarget.style.color = "white";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "white";
-                e.currentTarget.style.color = "#d4a574";
-              }}
-            >
-              ← Back to Recipes
-            </button>
+        <div className={styles.navButtons}>
+          <Link href="/recipes" className={styles.plainLink}>
+            <button className={styles.navButton}>← Back to Recipes</button>
           </Link>
         </div>
       </div>
 
       {recipe.description && (
-        <p style={styles.description}>{recipe.description}</p>
+        <p className={styles.description}>{recipe.description}</p>
       )}
 
       {/* Metrics */}
@@ -84,33 +71,33 @@ export default function RecipeDetailPage() {
         recipe.prepTimeMinutes ||
         recipe.cookTimeMinutes ||
         recipe.totalTimeMinutes) && (
-        <div style={styles.metricsGrid}>
+        <div className={styles.metricsGrid}>
           {recipe.servings && (
-            <div style={styles.metricCard}>
-              <div style={styles.metricLabel as any}>Servings</div>
-              <div style={styles.metricValue as any}>{recipe.servings}</div>
+            <div className={styles.metricCard}>
+              <div className={styles.metricLabel}>Servings</div>
+              <div className={styles.metricValue}>{recipe.servings}</div>
             </div>
           )}
           {recipe.prepTimeMinutes && (
-            <div style={styles.metricCard}>
-              <div style={styles.metricLabel as any}>Prep Time</div>
-              <div style={styles.metricValue as any}>
+            <div className={styles.metricCard}>
+              <div className={styles.metricLabel}>Prep Time</div>
+              <div className={styles.metricValue}>
                 {recipe.prepTimeMinutes} min
               </div>
             </div>
           )}
           {recipe.cookTimeMinutes && (
-            <div style={styles.metricCard}>
-              <div style={styles.metricLabel as any}>Cook Time</div>
-              <div style={styles.metricValue as any}>
+            <div className={styles.metricCard}>
+              <div className={styles.metricLabel}>Cook Time</div>
+              <div className={styles.metricValue}>
                 {recipe.cookTimeMinutes} min
               </div>
             </div>
           )}
           {recipe.totalTimeMinutes && (
-            <div style={styles.metricCard}>
-              <div style={styles.metricLabel as any}>Total Time</div>
-              <div style={styles.metricValue as any}>
+            <div className={styles.metricCard}>
+              <div className={styles.metricLabel}>Total Time</div>
+              <div className={styles.metricValue}>
                 {recipe.totalTimeMinutes} min
               </div>
             </div>
@@ -120,13 +107,13 @@ export default function RecipeDetailPage() {
 
       {/* Tags and Allergens */}
       {(recipe.tags?.length || recipe.allergens?.length) && (
-        <div style={styles.tagsAllergenSection}>
+        <div className={styles.tagsAllergenSection}>
           {recipe.tags && recipe.tags.length > 0 && (
-            <div style={styles.allergenDivider}>
-              <p style={styles.sectionLabel}>Tags</p>
-              <div style={styles.tagContainer}>
+            <div className={styles.allergenDivider}>
+              <p className={styles.sectionLabel}>Tags</p>
+              <div className={styles.tagContainer}>
                 {recipe.tags.map((tag) => (
-                  <span key={tag} style={styles.tag}>
+                  <span key={tag} className={styles.tag}>
                     {tag}
                   </span>
                 ))}
@@ -134,11 +121,11 @@ export default function RecipeDetailPage() {
             </div>
           )}
           {recipe.allergens && recipe.allergens.length > 0 && (
-            <div style={styles.allergenDivider}>
-              <p style={styles.sectionLabel}>Allergens</p>
-              <div style={styles.tagContainer}>
+            <div className={styles.allergenDivider}>
+              <p className={styles.sectionLabel}>Allergens</p>
+              <div className={styles.tagContainer}>
                 {recipe.allergens.map((allergen) => (
-                  <span key={allergen} style={styles.allergen}>
+                  <span key={allergen} className={styles.allergen}>
                     {allergen}
                   </span>
                 ))}
@@ -149,22 +136,22 @@ export default function RecipeDetailPage() {
       )}
 
       {/* Ingredients and Steps */}
-      <div style={styles.contentGrid}>
+      <div className={styles.contentGrid}>
         {/* Ingredients */}
         <div>
-          <h2 style={styles.sectionTitle}>Ingredients</h2>
-          <ul style={styles.ingredientList}>
+          <h2 className={styles.sectionTitle}>Ingredients</h2>
+          <ul className={styles.ingredientList}>
             {recipe.ingredients.map((ingredient, idx) => (
-              <li key={idx} style={styles.ingredientItem}>
-                <span style={styles.ingredientName}>{ingredient.name}</span>
+              <li key={idx} className={styles.ingredientItem}>
+                <span className={styles.ingredientName}>{ingredient.name}</span>
                 {ingredient.quantity && (
-                  <span style={styles.ingredientQuantity}>
+                  <span className={styles.ingredientQuantity}>
                     {ingredient.quantity}
                     {ingredient.unit && ` ${ingredient.unit}`}
                   </span>
                 )}
                 {ingredient.notes && (
-                  <p style={styles.ingredientNotes}>{ingredient.notes}</p>
+                  <p className={styles.ingredientNotes}>{ingredient.notes}</p>
                 )}
               </li>
             ))}
@@ -173,10 +160,10 @@ export default function RecipeDetailPage() {
 
         {/* Steps */}
         <div>
-          <h2 style={styles.sectionTitle}>Instructions</h2>
-          <ol style={styles.stepsList}>
+          <h2 className={styles.sectionTitle}>Instructions</h2>
+          <ol className={styles.stepsList}>
             {recipe.steps.map((step, idx) => (
-              <li key={idx} style={styles.stepItem}>
+              <li key={idx} className={styles.stepItem}>
                 {step}
               </li>
             ))}

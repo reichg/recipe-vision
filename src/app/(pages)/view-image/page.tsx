@@ -1,9 +1,9 @@
 "use client";
 
-import { styles } from "@/app/styles/view-image.styles";
+import { logger } from "@/lib/logger";
 import Image from "next/image";
 import { useState } from "react";
-import { logger } from "../../lib/logger";
+import styles from "./page.module.css";
 
 export default function ViewS3ImagePage() {
   const [imageKey, setImageKey] = useState("");
@@ -42,7 +42,7 @@ export default function ViewS3ImagePage() {
     try {
       logger.debug("Fetching image from S3", { key: parsedKey });
       const res = await fetch(
-        `/api/view-image?key=${encodeURIComponent(parsedKey)}`
+        `/api/view-image?key=${encodeURIComponent(parsedKey)}`,
       );
       const data = await res.json();
 
@@ -62,18 +62,18 @@ export default function ViewS3ImagePage() {
   };
 
   return (
-    <main style={styles.main}>
-      <div style={styles.container}>
-        <div style={styles.header}>
-          <h1 style={styles.title}>View S3 Image</h1>
-          <p style={styles.subtitle}>
+    <main className={styles.main}>
+      <div className={styles.container}>
+        <div className={styles.header}>
+          <h1 className={styles.title}>View S3 Image</h1>
+          <p className={styles.subtitle}>
             Enter an S3 object key to retrieve and display your uploaded images
           </p>
         </div>
 
-        <div style={styles.controlPanel}>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>S3 Object Key</label>
+        <div className={styles.controlPanel}>
+          <div className={styles.inputGroup}>
+            <label className={styles.label}>S3 Object Key</label>
             <input
               type="text"
               placeholder="recipes/1234567890-image.jpg or s3://bucket-name/recipes/image.jpg"
@@ -84,9 +84,9 @@ export default function ViewS3ImagePage() {
                   handleLoadImage();
                 }
               }}
-              style={styles.input}
+              className={styles.input}
             />
-            <p style={styles.hint}>
+            <p className={styles.hint}>
               Example: recipes/my-recipe-image.jpg or
               s3://bucket-name/recipes/my-recipe-image.jpg
             </p>
@@ -95,30 +95,16 @@ export default function ViewS3ImagePage() {
           <button
             onClick={handleLoadImage}
             disabled={loading}
-            style={{
-              ...styles.button,
-              ...(loading ? styles.buttonDisabled : {}),
-            }}
-            onMouseEnter={(e) => {
-              if (!loading) {
-                (e.target as HTMLButtonElement).style.transform =
-                  "translateY(-2px)";
-                (e.target as HTMLButtonElement).style.boxShadow =
-                  "0 6px 20px rgba(102, 126, 234, 0.5)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLButtonElement).style.transform = "translateY(0)";
-              (e.target as HTMLButtonElement).style.boxShadow =
-                "0 4px 15px rgba(102, 126, 234, 0.4)";
-            }}
+            className={`${styles.button} ${
+              loading ? styles.buttonDisabled : ""
+            }`}
           >
             {loading ? (
-              <span style={styles.buttonContent}>
-                <span style={styles.spinner}>⏳</span> Loading...
+              <span className={styles.buttonContent}>
+                <span className={styles.spinner}>⏳</span> Loading...
               </span>
             ) : (
-              <span style={styles.buttonContent}>
+              <span className={styles.buttonContent}>
                 <span>🔍</span> Load Image
               </span>
             )}
@@ -126,55 +112,55 @@ export default function ViewS3ImagePage() {
         </div>
 
         {error && (
-          <div style={styles.errorContainer}>
-            <span style={styles.errorIcon}>⚠️</span>
+          <div className={styles.errorContainer}>
+            <span className={styles.errorIcon}>⚠️</span>
             <span>{error}</span>
           </div>
         )}
 
         {imageUrl && (
-          <div style={styles.imageSection}>
-            <div style={styles.imageCard}>
-              <div style={styles.imageHeader}>
-                <h3 style={styles.imageTitle}>Retrieved Image</h3>
-                <span style={styles.badge}>✓ Loaded</span>
+          <div className={styles.imageSection}>
+            <div className={styles.imageCard}>
+              <div className={styles.imageHeader}>
+                <h3 className={styles.imageTitle}>Retrieved Image</h3>
+                <span className={styles.badge}>✓ Loaded</span>
               </div>
 
-              <div style={styles.imageWrapper}>
+              <div className={styles.imageWrapper}>
                 <Image
                   src={imageUrl}
                   alt="S3 Image"
                   width={1200}
                   height={800}
-                  style={styles.image}
+                  className={styles.image}
                   onError={() => {
                     setError(
-                      "Failed to load image. Check the key and CORS settings."
+                      "Failed to load image. Check the key and CORS settings.",
                     );
                     setImageUrl(null);
                   }}
                 />
               </div>
 
-              <div style={styles.metadataPanel}>
-                <div style={styles.metadataRow}>
-                  <span style={styles.metadataLabel}>S3 Key:</span>
-                  <code style={styles.metadataValue}>
+              <div className={styles.metadataPanel}>
+                <div className={styles.metadataRow}>
+                  <span className={styles.metadataLabel}>S3 Key:</span>
+                  <code className={styles.metadataValue}>
                     {parseS3Uri(imageKey)}
                   </code>
                 </div>
-                <div style={styles.metadataRow}>
-                  <span style={styles.metadataLabel}>URL:</span>
-                  <code style={styles.metadataValue}>{imageUrl}</code>
+                <div className={styles.metadataRow}>
+                  <span className={styles.metadataLabel}>URL:</span>
+                  <code className={styles.metadataValue}>{imageUrl}</code>
                 </div>
               </div>
 
-              <div style={styles.actions}>
+              <div className={styles.actions}>
                 <a
                   href={imageUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={styles.actionButton}
+                  className={styles.actionButton}
                 >
                   🔗 Open in New Tab
                 </a>
@@ -183,7 +169,7 @@ export default function ViewS3ImagePage() {
                     navigator.clipboard.writeText(imageUrl);
                     alert("URL copied to clipboard!");
                   }}
-                  style={styles.actionButton}
+                  className={styles.actionButton}
                 >
                   📋 Copy URL
                 </button>
@@ -193,10 +179,10 @@ export default function ViewS3ImagePage() {
         )}
 
         {!imageUrl && !error && !loading && (
-          <div style={styles.placeholder}>
-            <div style={styles.placeholderIcon}>🖼️</div>
-            <h3 style={styles.placeholderTitle}>No Image Loaded</h3>
-            <p style={styles.placeholderText}>
+          <div className={styles.placeholder}>
+            <div className={styles.placeholderIcon}>🖼️</div>
+            <h3 className={styles.placeholderTitle}>No Image Loaded</h3>
+            <p className={styles.placeholderText}>
               Enter an S3 object key above and click &quot;Load Image&quot; to
               view your uploaded content
             </p>

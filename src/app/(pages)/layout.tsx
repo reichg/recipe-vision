@@ -2,7 +2,7 @@ import { Lora, Playfair_Display } from "next/font/google";
 import type { ReactNode } from "react";
 import { DatabaseHealthIndicator } from "../components/DatabaseHealthIndicator";
 import Navbar from "../components/Navbar";
-import { layoutStyles } from "../styles/layout.styles";
+import styles from "./layout.module.css";
 
 const playfair = Playfair_Display({
   subsets: ["latin"],
@@ -18,7 +18,7 @@ export const metadata = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={`${playfair.variable} ${lora.variable}`}>
-      <body style={layoutStyles.body}>
+      <body className={styles.body}>
         <Navbar />
         {children}
         <DatabaseHealthIndicator />

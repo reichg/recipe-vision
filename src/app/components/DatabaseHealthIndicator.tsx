@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { healthIndicatorStyles } from "../styles/healthIndicator.styles";
+import styles from "./DatabaseHealthIndicator.module.css";
 
 export function DatabaseHealthIndicator() {
   const [dbStatus, setDbStatus] = useState<"ok" | "error" | "loading">(
-    "loading"
+    "loading",
   );
 
   useEffect(() => {
@@ -23,14 +23,10 @@ export function DatabaseHealthIndicator() {
     };
 
     checkHealth();
-    const interval = setInterval(checkHealth, 30000); // Check every 30 seconds
+    const interval = setInterval(checkHealth, 1000 * 60 * 5); // Check every 5 minutes
 
     return () => clearInterval(interval);
   }, []);
-
-  const getStatusColor = () => {
-    return healthIndicatorStyles.statusColors[dbStatus];
-  };
 
   const getStatusLabel = () => {
     switch (dbStatus) {
@@ -43,17 +39,17 @@ export function DatabaseHealthIndicator() {
     }
   };
 
+  const statusDotClass =
+    dbStatus === "ok"
+      ? styles.statusDotOk
+      : dbStatus === "error"
+        ? styles.statusDotError
+        : styles.statusDotLoading;
+
   return (
-    <div style={healthIndicatorStyles.container}>
-      <span
-        style={{
-          ...healthIndicatorStyles.statusDot,
-          backgroundColor: getStatusColor(),
-          animation: dbStatus === "loading" ? "pulse 2s infinite" : "none",
-        }}
-      />
-      <span style={healthIndicatorStyles.statusLabel}>{getStatusLabel()}</span>
-      <style>{healthIndicatorStyles.animations}</style>
+    <div className={styles.container}>
+      <span className={`${styles.statusDot} ${statusDotClass}`} />
+      <span className={styles.statusLabel}>{getStatusLabel()}</span>
     </div>
   );
 }

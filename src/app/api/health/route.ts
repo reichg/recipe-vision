@@ -1,6 +1,7 @@
 // app/api/health/route.ts
 import { NextResponse } from "next/server";
-import { waitForDatabaseReady } from "../../lib/db/db-ready";
+
+import { waitForDatabaseReady } from "@/server/db/db-ready";
 
 export const runtime = "nodejs";
 
@@ -11,7 +12,7 @@ export async function GET() {
   } catch {
     return NextResponse.json(
       { status: "error", db: "starting" },
-      { status: 503 }
+      { status: 503 },
     );
   }
 }
