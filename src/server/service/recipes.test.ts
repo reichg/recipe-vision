@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { AppError } from "@/server/shared/errors";
+
 const mocks = vi.hoisted(() => ({
   assertValidImageFiles: vi.fn(),
   logger: {
@@ -163,5 +165,29 @@ describe("createRecipeFromImages", () => {
 
     expect(mocks.prismaCreate).toHaveBeenCalledTimes(1);
     expect(mocks.prismaFindUnique).toHaveBeenCalledTimes(2);
+  });
+
+  it("stops before recipe extraction and persistence when OCR is rate limited", async () => {
+    const file = new File([new Uint8Array([1, 2, 3])], "recipe-1.jpg", {
+      type: "image/jpeg",
+    });
+
+    mocks.prismaFindUnique.mockResolvedValue(null);
+    mocks.ocrSpaceExtractText.mockRejectedValue(
+      new AppError({
+        code: "OCR_RATE_LIMITED",
+        message:
+          "OCR service is temporarily rate limited. Please try again later.",
+        statusCode: 503,
+      }),
+    );
+
+    await expect(createRecipeFromImages([file])).rejects.toMatchObject({
+      code: "OCR_RATE_LIMITED",
+      statusCode: 503,
+    });
+
+    expect(mocks.recipeFromOcrText).not.toHaveBeenCalled();
+    expect(mocks.prismaCreate).not.toHaveBeenCalled();
   });
 });

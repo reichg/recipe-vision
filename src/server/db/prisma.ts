@@ -13,10 +13,10 @@ function createPrismaClient() {
 
   return new PrismaClient({
     adapter: new PrismaPg({ connectionString: DATABASE_URL }),
-    log:
-      process.env.NODE_ENV === "development"
-        ? ["error", "info", "warn", "query"]
-        : ["error", "warn"],
+    // log:
+    //   process.env.NODE_ENV === "development"
+    //     ? ["error", "info", "warn", "query"]
+    //     : ["error", "warn"],
   });
 }
 

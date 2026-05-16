@@ -7,11 +7,29 @@ interface LogEntry {
   data?: unknown;
 }
 
-function safeStringify(value: unknown): string {
+function safeStringify(value: unknown, space = 2): string {
   try {
-    return JSON.stringify(value);
+    return JSON.stringify(value, null, space);
   } catch {
     return '"[unserializable]"';
+  }
+}
+
+function normalizeLogData(data: unknown): unknown {
+  if (data === undefined) {
+    return undefined;
+  }
+
+  try {
+    const serializedData = JSON.stringify(data);
+
+    if (serializedData === undefined) {
+      return "[unserializable]";
+    }
+
+    return data;
+  } catch {
+    return "[unserializable]";
   }
 }
 
@@ -51,8 +69,13 @@ class Logger {
 
   private formatOutput(entry: LogEntry): string {
     const { timestamp, level, message, data } = entry;
-    const dataStr = data === undefined ? "" : ` ${safeStringify(data)}`;
-    return `[${timestamp}] [${level.toUpperCase()}] ${message}${dataStr}`;
+
+    return safeStringify({
+      timestamp,
+      level,
+      message,
+      ...(data === undefined ? {} : { data: normalizeLogData(data) }),
+    });
   }
 
   debug(message: string, data?: unknown): void {

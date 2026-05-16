@@ -1,10 +1,8 @@
 import { logger } from "@/lib/logger";
 import { RecipeSchema, type RecipeFromSchema } from "@/schemas/recipeSchema";
-import { getAiEnv } from "@/server/config/env";
 import { AppError } from "@/server/shared/errors";
-import { withTimeout } from "@/server/shared/timeout";
 
-import { getGeminiClient } from "./gemini";
+import { generateStructuredRecipeJsonText } from "./llm";
 
 function normalizeOcrSegments(ocrSegments: string[]) {
   return ocrSegments.map((segment) => segment.trim()).filter(Boolean);
@@ -51,48 +49,13 @@ Rules:
 `.trim();
 }
 
-function buildExtractionParts(ocrSegments: string[]) {
-  return [
-    { text: buildExtractionInstructionText() },
-    ...ocrSegments.map((segment, index) => ({
-      text: `Recipe photo ${index + 1} OCR text:\n"""\n${segment}\n"""`,
-    })),
-  ];
-}
-
-export async function recipeFromOcrText(
-  ocrSegments: string[],
-): Promise<RecipeFromSchema> {
-  const ai = getGeminiClient();
-  const { GEMINI_MODEL, GEMINI_TIMEOUT_MS } = getAiEnv();
-  const normalizedSegments = normalizeOcrSegments(ocrSegments);
-
-  const response = await withTimeout(
-    ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [
-        {
-          role: "user",
-          parts: buildExtractionParts(normalizedSegments),
-        },
-      ],
-      config: {
-        responseMimeType: "application/json",
-      },
-    }),
-    GEMINI_TIMEOUT_MS,
-    new AppError({
-      code: "GEMINI_TIMEOUT",
-      message: "Recipe extraction timed out",
-      statusCode: 502,
-    }),
-  );
-
-  const text = response.text ?? "";
-
+function parseRecipeResponse(
+  text: string,
+  normalizedSegments: string[],
+): RecipeFromSchema {
   if (!text.trim()) {
     throw new AppError({
-      code: "GEMINI_EMPTY_RESPONSE",
+      code: "LLM_EMPTY_RESPONSE",
       message: "Recipe extraction failed",
       statusCode: 502,
     });
@@ -104,7 +67,7 @@ export async function recipeFromOcrText(
     parsed = JSON.parse(text);
   } catch (error) {
     throw new AppError({
-      code: "GEMINI_INVALID_RESPONSE",
+      code: "LLM_INVALID_RESPONSE",
       message: "Recipe extraction failed",
       statusCode: 502,
       cause: error,
@@ -122,4 +85,16 @@ export async function recipeFromOcrText(
   logger.info("Recipe schema validation successful", { title: recipe.title });
 
   return { ...recipe, sourceText };
+}
+
+export async function recipeFromOcrText(
+  ocrSegments: string[],
+): Promise<RecipeFromSchema> {
+  const normalizedSegments = normalizeOcrSegments(ocrSegments);
+  const text = await generateStructuredRecipeJsonText({
+    instructionText: buildExtractionInstructionText(),
+    ocrSegments: normalizedSegments,
+  });
+
+  return parseRecipeResponse(text, normalizedSegments);
 }
