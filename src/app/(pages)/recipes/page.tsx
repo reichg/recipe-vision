@@ -4,7 +4,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { Recipe } from "../../models/recipe";
-import { styles } from "../../styles/recipe.styles";
+import styles from "./recipe.module.css";
 
 interface PaginationInfo {
   page: number;
@@ -22,7 +22,7 @@ export default function RecipesPage() {
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedRecipes, setSelectedRecipes] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
   const [deleting, setDeleting] = useState(false);
 
@@ -31,7 +31,7 @@ export default function RecipesPage() {
 
     if (
       !confirm(
-        `Are you sure you want to delete ${selectedRecipes.size} recipe(s)?`
+        `Are you sure you want to delete ${selectedRecipes.size} recipe(s)?`,
       )
     ) {
       return;
@@ -118,31 +118,31 @@ export default function RecipesPage() {
   }, [currentPage]);
 
   return (
-    <main style={styles.main}>
-      <div style={styles.headerContainer}>
-        <div style={styles.headerCentered}>
-          <h1 style={styles.pageTitle}>Saved Recipes</h1>
-          <p style={styles.pageSubtitle}>
+    <main className={styles.main}>
+      <div className={styles.headerContainer}>
+        <div className={styles.headerCentered}>
+          <h1 className={styles.pageTitle}>Saved Recipes</h1>
+          <p className={styles.pageSubtitle}>
             Recent parsed recipes from the service
           </p>
         </div>
       </div>
 
-      {loading && <p style={styles.centerText}>Loading...</p>}
+      {loading && <p className={styles.centerText}>Loading...</p>}
       {error && (
-        <p style={{ ...styles.errorMessage, ...styles.centerText }}>{error}</p>
+        <p className={`${styles.errorMessage} ${styles.centerText}`}>{error}</p>
       )}
 
       {recipes.length > 0 && (
-        <div style={styles.selectionControlsContainer}>
-          <label style={styles.selectAllLabel}>
+        <div className={styles.selectionControlsContainer}>
+          <label className={styles.selectAllLabel}>
             <input
               type="checkbox"
               checked={
                 selectedRecipes.size === recipes.length && recipes.length > 0
               }
               onChange={toggleSelectAll}
-              style={styles.selectAllCheckbox}
+              className={styles.selectAllCheckbox}
             />
             Select All
           </label>
@@ -150,10 +150,9 @@ export default function RecipesPage() {
             <button
               onClick={handleDeleteSelected}
               disabled={deleting}
-              style={{
-                ...styles.deleteButton,
-                ...(deleting ? styles.deleteButtonDisabled : {}),
-              }}
+              className={`${styles.deleteButton} ${
+                deleting ? styles.deleteButtonDisabled : ""
+              }`}
             >
               {deleting
                 ? "Deleting..."
@@ -164,18 +163,18 @@ export default function RecipesPage() {
       )}
 
       {pagination && (
-        <div style={styles.paginationInfoText}>
+        <div className={styles.paginationInfoText}>
           Showing {recipes.length} of {pagination.total} recipes (Page{" "}
           {pagination.page} of {pagination.totalPages})
         </div>
       )}
-      <div style={styles.compactRecipesGrid}>
+      <div className={styles.compactRecipesGrid}>
         {recipes.length === 0 && !loading && (
-          <p style={styles.noRecipesMessage}>No recipes found.</p>
+          <p className={styles.noRecipesMessage}>No recipes found.</p>
         )}
 
         {recipes.map((r, idx) => (
-          <div key={idx} style={styles.recipeCardWrapper}>
+          <div key={idx} className={styles.recipeCardWrapper}>
             <input
               type="checkbox"
               checked={selectedRecipes.has(r.id)}
@@ -184,65 +183,61 @@ export default function RecipesPage() {
                 toggleRecipeSelection(r.id);
               }}
               onClick={(e) => e.stopPropagation()}
-              style={styles.recipeCardCheckbox}
+              className={styles.recipeCardCheckbox}
             />
-            <Link href={`/recipes/${r.id}`} style={styles.compactRecipeLink}>
-              <div
-                style={styles.compactRecipeCard}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = "translateY(-4px)";
-                  e.currentTarget.style.boxShadow =
-                    "0 8px 20px rgba(212, 165, 116, 0.15)";
-                  e.currentTarget.style.borderColor = "#d4a574";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.boxShadow = "none";
-                  e.currentTarget.style.borderColor = "#ede5d9";
-                }}
-              >
-                <h3 style={styles.compactRecipeTitle}>{r.title}</h3>
+            <Link
+              href={`/recipes/${r.id}`}
+              className={styles.compactRecipeLink}
+            >
+              <div className={styles.compactRecipeCard}>
+                <h3 className={styles.compactRecipeTitle}>{r.title}</h3>
 
                 {r.description && (
-                  <p style={styles.compactRecipeDescription}>{r.description}</p>
+                  <p className={styles.compactRecipeDescription}>
+                    {r.description}
+                  </p>
                 )}
 
-                <div style={styles.compactRecipeTagsContainer}>
+                <div className={styles.compactRecipeTagsContainer}>
                   {r.tags?.slice(0, 3).map((t) => (
-                    <span key={t} style={styles.compactRecipeTag}>
+                    <span key={t} className={styles.compactRecipeTag}>
                       {t}
                     </span>
                   ))}
                   {(r.tags?.length ?? 0) > 3 && (
-                    <span style={styles.compactRecipeTagMore}>
+                    <span className={styles.compactRecipeTagMore}>
                       +{(r.tags?.length ?? 0) - 3}
                     </span>
                   )}
                 </div>
 
-                <div style={styles.compactRecipeMetricsFooter}>
+                <div className={styles.compactRecipeMetricsFooter}>
                   {r.servings && (
-                    <div style={styles.compactRecipeMetricItem}>
-                      <div style={styles.compactRecipeMetricLabel}>
+                    <div className={styles.compactRecipeMetricItem}>
+                      <div className={styles.compactRecipeMetricLabel}>
                         Servings
                       </div>
-                      <div style={styles.compactRecipeMetricValue}>
+                      <div className={styles.compactRecipeMetricValue}>
                         {r.servings}
                       </div>
                     </div>
                   )}
                   {r.totalTimeMinutes && (
-                    <div style={styles.compactRecipeMetricItem}>
-                      <div style={styles.compactRecipeMetricLabel}>Time</div>
-                      <div style={styles.compactRecipeMetricValue}>
+                    <div className={styles.compactRecipeMetricItem}>
+                      <div className={styles.compactRecipeMetricLabel}>
+                        Time
+                      </div>
+                      <div className={styles.compactRecipeMetricValue}>
                         {r.totalTimeMinutes}m
                       </div>
                     </div>
                   )}
                   {r.ingredients && (
-                    <div style={styles.compactRecipeMetricItem}>
-                      <div style={styles.compactRecipeMetricLabel}>Items</div>
-                      <div style={styles.compactRecipeMetricValue}>
+                    <div className={styles.compactRecipeMetricItem}>
+                      <div className={styles.compactRecipeMetricLabel}>
+                        Items
+                      </div>
+                      <div className={styles.compactRecipeMetricValue}>
                         {r.ingredients.length}
                       </div>
                     </div>
@@ -255,24 +250,23 @@ export default function RecipesPage() {
       </div>
 
       {pagination && pagination.totalPages > 1 && (
-        <div style={styles.paginationContainer}>
+        <div className={styles.paginationContainer}>
           <button
             onClick={() => {
               setLoading(true);
               setCurrentPage((p) => Math.max(1, p - 1));
             }}
             disabled={!pagination.hasPrev || loading}
-            style={{
-              ...styles.paginationButton,
-              ...(!pagination.hasPrev || loading
+            className={`${styles.paginationButton} ${
+              !pagination.hasPrev || loading
                 ? styles.paginationButtonDisabled
-                : {}),
-            }}
+                : ""
+            }`}
           >
             ← Previous
           </button>
 
-          <div style={styles.paginationPages}>
+          <div className={styles.paginationPages}>
             {/* Show first page */}
             {currentPage > 3 && (
               <>
@@ -281,7 +275,7 @@ export default function RecipesPage() {
                     setLoading(true);
                     setCurrentPage(1);
                   }}
-                  style={styles.paginationPageButton}
+                  className={styles.paginationPageButton}
                 >
                   1
                 </button>
@@ -297,7 +291,7 @@ export default function RecipesPage() {
                   p === currentPage - 1 ||
                   p === currentPage + 1 ||
                   p === currentPage - 2 ||
-                  p === currentPage + 2
+                  p === currentPage + 2,
               )
               .filter((p) => p >= 1 && p <= pagination.totalPages)
               .map((pageNum) => (
@@ -308,12 +302,11 @@ export default function RecipesPage() {
                     setCurrentPage(pageNum);
                   }}
                   disabled={loading}
-                  style={{
-                    ...(pageNum === currentPage
+                  className={`${
+                    pageNum === currentPage
                       ? styles.paginationPageButtonActive
-                      : styles.paginationPageButton),
-                    ...(loading ? styles.paginationPageButtonDisabled : {}),
-                  }}
+                      : styles.paginationPageButton
+                  } ${loading ? styles.paginationPageButtonDisabled : ""}`}
                 >
                   {pageNum}
                 </button>
@@ -328,7 +321,7 @@ export default function RecipesPage() {
                     setLoading(true);
                     setCurrentPage(pagination.totalPages);
                   }}
-                  style={styles.paginationPageButton}
+                  className={styles.paginationPageButton}
                 >
                   {pagination.totalPages}
                 </button>
@@ -342,12 +335,11 @@ export default function RecipesPage() {
               setCurrentPage((p) => Math.min(pagination.totalPages, p + 1));
             }}
             disabled={!pagination.hasNext || loading}
-            style={{
-              ...styles.paginationButton,
-              ...(!pagination.hasNext || loading
+            className={`${styles.paginationButton} ${
+              !pagination.hasNext || loading
                 ? styles.paginationButtonDisabled
-                : {}),
-            }}
+                : ""
+            }`}
           >
             Next →
           </button>

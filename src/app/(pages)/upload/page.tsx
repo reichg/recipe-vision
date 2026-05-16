@@ -1,57 +1,71 @@
 "use client";
 
-import { uploadStyles } from "@/app/styles/upload.styles";
-import { popupStyles } from "@/app/styles/uploadSuccessPopup.styles";
+import { logger } from "@/lib/logger";
 import Image from "next/image";
 import { useState } from "react";
-import { logger } from "../../lib/logger";
 import { Recipe } from "../../models/recipe";
-import { styles } from "../../styles/recipe.styles";
-
-const colors = {
-  primary: "#d4a574",
-  primaryLight: "#f5e6d3",
-  accent: "#c9a887",
-  background: "#fef9f3",
-};
+import recipeStyles from "../recipes/recipe.module.css";
+import styles from "./page.module.css";
+import {
+  getRecipeFromUploadResponse,
+  getUploadProcessingError,
+  type RecipeApiResponse,
+  toRecipeResult,
+  type UploadApiResponse,
+} from "./upload-response";
 
 export default function ParsePage() {
-  const [file, setFile] = useState<File | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [previews, setPreviews] = useState<string[]>([]);
   const [result, setResult] = useState<Recipe | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [uploadedToS3, setUploadedToS3] = useState(false);
   const [s3UploadSuccess, setS3UploadSuccess] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<{
-    current: number;
-    total: number;
-  } | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setResult(null);
 
-    if (!file) {
-      setError("Pick an image first.");
+    if (files.length === 0) {
+      setError("Pick at least one image first.");
       setTimeout(() => setError(null), 3000);
+      return;
+    }
+
+    const oversizedFiles = files.filter(
+      (selectedFile) => selectedFile.size > 1024 * 1024,
+    );
+
+    if (oversizedFiles.length > 0) {
+      setError(
+        `The following image${oversizedFiles.length > 1 ? "s are" : " is"} too large (max 1024 KB):\n` +
+          oversizedFiles
+            .map((selectedFile) => `- ${selectedFile.name}`)
+            .join("\n"),
+      );
+      setTimeout(() => setError(null), 4000);
       return;
     }
 
     try {
       const form = new FormData();
-      form.append("image", file);
-      logger.debug("Sending image to recipe API");
+      for (const file of files) {
+        form.append("images", file);
+      }
+
+      logger.debug("Sending recipe images to recipe API", {
+        imageCount: files.length,
+      });
       const res = await fetch("/api/recipes", {
         method: "POST",
         body: form,
       });
-      const data = await res.json();
+      const data = (await res.json()) as RecipeApiResponse;
       logger.debug("Recipe API response received", { status: res.status });
 
       if (!res.ok) throw new Error(data?.error ?? "Request failed");
-      setResult(data.recipe as Recipe);
+      setResult(toRecipeResult(data.id, data.recipe));
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
       setError(e?.message ?? "Unknown error");
@@ -62,6 +76,7 @@ export default function ParsePage() {
   async function uploadToS3() {
     setError(null);
     setS3UploadSuccess(null);
+    setResult(null);
 
     if (files.length === 0) {
       setError("Pick at least one image first.");
@@ -69,47 +84,60 @@ export default function ParsePage() {
       return;
     }
 
+    // Check all file sizes before upload
+    const oversizedFiles = files.filter((f) => f.size > 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      setError(
+        `The following image${oversizedFiles.length > 1 ? "s are" : " is"} too large (max 1024 KB):\n` +
+          oversizedFiles.map((f) => `- ${f.name}`).join("\n"),
+      );
+      setTimeout(() => setError(null), 5000);
+      return;
+    }
+
     setUploadedToS3(true);
-    setUploadProgress({ current: 0, total: files.length });
 
     try {
-      let successCount = 0;
-      const uploadResults: string[] = [];
+      const form = new FormData();
 
-      for (let i = 0; i < files.length; i++) {
-        const currentFile = files[i];
-        setUploadProgress({ current: i + 1, total: files.length });
-
-        try {
-          const form = new FormData();
-          form.append("image", currentFile);
-          logger.debug("Uploading image to S3", { fileName: currentFile.name });
-          const res = await fetch("/api/upload", {
-            method: "POST",
-            body: form,
-          });
-          const data = await res.json();
-          logger.debug("S3 upload response received", {
-            status: res.status,
-            fileName: currentFile.name,
-          });
-
-          if (!res.ok) throw new Error(data?.error ?? "Upload failed");
-          uploadResults.push(currentFile.name);
-          successCount++;
-        } catch (uploadError) {
-          logger.error("Failed to upload image", {
-            fileName: currentFile.name,
-            error:
-              uploadError instanceof Error
-                ? uploadError.message
-                : "Unknown error",
-          });
-        }
+      for (const file of files) {
+        form.append("images", file);
       }
 
+      logger.debug("Uploading recipe images to S3", {
+        imageCount: files.length,
+      });
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: form,
+      });
+      const data = (await res.json()) as UploadApiResponse;
+      logger.debug("S3 upload response received", {
+        status: res.status,
+        imageCount: files.length,
+      });
+
+      if (!res.ok) throw new Error(data?.error ?? "Upload failed");
+
+      const processingError = getUploadProcessingError(data);
+
+      if (processingError) {
+        setError(processingError);
+        return;
+      }
+
+      const processedRecipe = getRecipeFromUploadResponse(data);
+
+      if (!processedRecipe) {
+        setError("Automatic processing failed after upload");
+        return;
+      }
+
+      setResult(processedRecipe);
+
       setS3UploadSuccess(
-        `Successfully uploaded ${successCount} of ${files.length} images!`
+        data?.message ??
+          `Uploaded ${files.length} image${files.length === 1 ? "" : "s"} and processed the recipe successfully`,
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (e: any) {
@@ -118,56 +146,57 @@ export default function ParsePage() {
       setTimeout(() => {
         setUploadedToS3(false);
         setS3UploadSuccess(null);
-        setUploadProgress(null);
       }, 5000);
     }
   }
 
   return (
-    <main style={styles.main}>
+    <main className={recipeStyles.main}>
       {s3UploadSuccess && (
-        <div style={popupStyles.overlay}>
-          <div style={popupStyles.popup}>
-            <div style={popupStyles.icon}>✓</div>
-            <h2 style={popupStyles.title}>Upload Successful!</h2>
-            <p style={popupStyles.message}>
-              Your image has been uploaded to S3
-            </p>
-            <p style={popupStyles.url}>{s3UploadSuccess}</p>
+        <div className={styles.popupOverlay}>
+          <div className={styles.popup}>
+            <div className={styles.popupIcon}>✓</div>
+            <h2 className={styles.popupTitle}>Upload complete</h2>
+            <p className={styles.popupMessage}>Your recipe is ready below.</p>
+            <p className={styles.popupUrl}>{s3UploadSuccess}</p>
           </div>
         </div>
       )}
-      <div style={styles.headerContainer}>
+      <div className={recipeStyles.headerContainer}>
         <div>
-          <h1 style={styles.pageTitle}>S3 Uploader</h1>
-          <p style={styles.pageSubtitle}>
-            Upload to S3 so the image can be processed.
+          <h1 className={recipeStyles.pageTitle}>Uploader</h1>
+          <p className={recipeStyles.pageSubtitle}>
+            Upload one or more photos for the same recipe so they can be
+            processed together.
           </p>
         </div>
       </div>
 
-      <form onSubmit={onSubmit} style={styles.form}>
-        <label style={uploadStyles.fileInputLabel}>
-          <span style={uploadStyles.fileInputLabelText}>Select Images</span>
-          <div
-            style={uploadStyles.fileInputDropZone}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.borderColor = colors.accent;
-              e.currentTarget.style.backgroundColor = colors.primaryLight;
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.borderColor = colors.primary;
-              e.currentTarget.style.backgroundColor = colors.background;
-            }}
-          >
+      <form onSubmit={onSubmit} className={recipeStyles.form}>
+        <label className={styles.fileInputLabel}>
+          <span className={styles.fileInputLabelText}>Select Images</span>
+          <div className={styles.fileInputDropZone}>
             <input
               type="file"
               accept="image/*"
               multiple
               onChange={(e) => {
                 const selectedFiles = Array.from(e.target.files || []);
+                // Check for oversized files immediately
+                const oversizedFiles = selectedFiles.filter(
+                  (f) => f.size > 1024 * 1024,
+                );
+                if (oversizedFiles.length > 0) {
+                  setError(
+                    `The following image${oversizedFiles.length > 1 ? "s are" : " is"} too large (max 1024 KB):\n` +
+                      oversizedFiles.map((f) => `- ${f.name}`).join("\n"),
+                  );
+                  setTimeout(() => setError(null), 5000);
+                  setFiles([]);
+                  setPreviews([]);
+                  return;
+                }
                 setFiles(selectedFiles);
-                setFile(selectedFiles[0] || null);
                 setS3UploadSuccess(null);
 
                 // Create previews for all files
@@ -189,16 +218,16 @@ export default function ParsePage() {
                   setPreviews([]);
                 }
               }}
-              style={uploadStyles.fileInputHidden}
+              className={styles.fileInputHidden}
             />
-            <div style={uploadStyles.fileInputContent}>
-              <div style={uploadStyles.fileInputIcon}>📁</div>
-              <div style={uploadStyles.fileInputMainText}>
+            <div className={styles.fileInputContent}>
+              <div className={styles.fileInputIcon}>📁</div>
+              <div className={styles.fileInputMainText}>
                 {files.length > 0
                   ? `${files.length} file${files.length > 1 ? "s" : ""} selected`
                   : "Click to browse or drag and drop"}
               </div>
-              <div style={uploadStyles.fileInputSubText}>
+              <div className={styles.fileInputSubText}>
                 PNG, JPG, JPEG up to 10MB
               </div>
             </div>
@@ -206,21 +235,21 @@ export default function ParsePage() {
         </label>
 
         {previews.length > 0 && (
-          <div style={styles.previewBox}>
-            <p style={styles.previewLabel}>
+          <div className={recipeStyles.previewBox}>
+            <p className={recipeStyles.previewLabel}>
               Preview ({previews.length} image{previews.length > 1 ? "s" : ""})
             </p>
-            <div style={uploadStyles.previewGrid}>
+            <div className={styles.previewGrid}>
               {previews.map((previewUrl, idx) => (
-                <div key={idx} style={uploadStyles.previewImageWrapper}>
+                <div key={idx} className={styles.previewImageWrapper}>
                   <Image
                     src={previewUrl}
                     alt={`Preview ${idx + 1}`}
                     width={200}
                     height={150}
-                    style={uploadStyles.previewImage}
+                    className={styles.previewImage}
                   />
-                  <div style={uploadStyles.previewImageLabel}>
+                  <div className={styles.previewImageLabel}>
                     {files[idx]?.name}
                   </div>
                 </div>
@@ -229,88 +258,73 @@ export default function ParsePage() {
           </div>
         )}
 
-        <div style={uploadStyles.buttonContainer}>
+        <div className={styles.buttonContainer}>
           <button
             type="button"
             disabled={uploadedToS3}
             onClick={uploadToS3}
-            style={{
-              ...styles.submitButton,
-              ...(uploadedToS3 ? styles.submitButtonLoading : {}),
-              background: uploadedToS3
-                ? "#6b7280"
-                : "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-            }}
-            onMouseEnter={(e) => {
-              if (!uploadedToS3) {
-                Object.assign((e.target as HTMLButtonElement).style, {
-                  ...styles.submitButton,
-                  background:
-                    "linear-gradient(135deg, #f5576c 0%, #f093fb 100%)",
-                });
-              }
-            }}
-            onMouseLeave={(e) => {
-              Object.assign((e.target as HTMLButtonElement).style, {
-                ...styles.submitButton,
-                background: "linear-gradient(135deg, #f093fb 0%, #f5576c 100%)",
-              });
-            }}
+            className={`${styles.uploadButton} ${
+              uploadedToS3 ? styles.uploadButtonDisabled : ""
+            }`}
           >
-            {uploadedToS3 && uploadProgress
-              ? `Uploading ${uploadProgress.current}/${uploadProgress.total}...`
-              : uploadedToS3
-              ? "Uploading to S3..."
-              : `Upload ${files.length > 0 ? files.length : ""} to S3`}
+            {uploadedToS3
+              ? `Uploading ${files.length} image${files.length === 1 ? "" : "s"}...`
+              : `Upload ${files.length > 0 ? files.length : ""}`}
           </button>
         </div>
       </form>
 
-      {error && <p style={styles.error}>{error}</p>}
+      {error && <p className={recipeStyles.error}>{error}</p>}
 
       {result && (
-        <div style={styles.recipeContainer}>
+        <div className={recipeStyles.recipeContainer}>
           <h2>{result.title}</h2>
 
           {result.description && (
-            <p style={styles.description}>{result.description}</p>
+            <p className={recipeStyles.description}>{result.description}</p>
           )}
 
-          <div style={styles.metricsGrid}>
+          <div className={recipeStyles.metricsGrid}>
             {result.servings && (
-              <div style={styles.metricCard}>
-                <p style={styles.metricLabel}>SERVINGS</p>
-                <p style={styles.metricValue}>{result.servings}</p>
+              <div className={recipeStyles.metricCard}>
+                <p className={recipeStyles.metricLabel}>SERVINGS</p>
+                <p className={recipeStyles.metricValue}>{result.servings}</p>
               </div>
             )}
             {result.prepTimeMinutes && (
-              <div style={styles.metricCard}>
-                <p style={styles.metricLabel}>PREP TIME</p>
-                <p style={styles.metricValue}>{result.prepTimeMinutes} min</p>
+              <div className={recipeStyles.metricCard}>
+                <p className={recipeStyles.metricLabel}>PREP TIME</p>
+                <p className={recipeStyles.metricValue}>
+                  {result.prepTimeMinutes} min
+                </p>
               </div>
             )}
             {result.cookTimeMinutes && (
-              <div style={styles.metricCard}>
-                <p style={styles.metricLabel}>COOK TIME</p>
-                <p style={styles.metricValue}>{result.cookTimeMinutes} min</p>
+              <div className={recipeStyles.metricCard}>
+                <p className={recipeStyles.metricLabel}>COOK TIME</p>
+                <p className={recipeStyles.metricValue}>
+                  {result.cookTimeMinutes} min
+                </p>
               </div>
             )}
             {result.totalTimeMinutes && (
-              <div style={styles.metricCard}>
-                <p style={styles.metricLabel}>TOTAL TIME</p>
-                <p style={styles.metricValue}>{result.totalTimeMinutes} min</p>
+              <div className={recipeStyles.metricCard}>
+                <p className={recipeStyles.metricLabel}>TOTAL TIME</p>
+                <p className={recipeStyles.metricValue}>
+                  {result.totalTimeMinutes} min
+                </p>
               </div>
             )}
           </div>
 
           {(result.tags || result.allergens) && (
-            <div style={styles.tagsAllergenSection}>
+            <div className={recipeStyles.tagsAllergenSection}>
               {result.tags && result.tags.length > 0 && (
-                <div style={styles.allergenDivider}>
-                  <p style={styles.sectionLabel}>TAGS</p>
-                  <div style={styles.tagContainer}>
+                <div className={recipeStyles.allergenDivider}>
+                  <p className={recipeStyles.sectionLabel}>TAGS</p>
+                  <div className={recipeStyles.tagContainer}>
                     {result.tags.map((tag) => (
-                      <span key={tag} style={styles.tag}>
+                      <span key={tag} className={recipeStyles.tag}>
                         {tag}
                       </span>
                     ))}
@@ -319,10 +333,10 @@ export default function ParsePage() {
               )}
               {result.allergens && result.allergens.length > 0 && (
                 <div>
-                  <p style={styles.sectionLabel}>ALLERGENS</p>
-                  <div style={styles.tagContainer}>
+                  <p className={recipeStyles.sectionLabel}>ALLERGENS</p>
+                  <div className={recipeStyles.tagContainer}>
                     {result.allergens.map((allergen) => (
-                      <span key={allergen} style={styles.allergen}>
+                      <span key={allergen} className={recipeStyles.allergen}>
                         {allergen}
                       </span>
                     ))}
@@ -332,20 +346,24 @@ export default function ParsePage() {
             </div>
           )}
 
-          <div style={styles.contentGrid}>
+          <div className={recipeStyles.contentGrid}>
             <div>
-              <h3 style={styles.sectionTitle}>Ingredients</h3>
-              <ul style={styles.ingredientList}>
+              <h3 className={recipeStyles.sectionTitle}>Ingredients</h3>
+              <ul className={recipeStyles.ingredientList}>
                 {result.ingredients.map((ingredient, idx) => (
-                  <li key={idx} style={styles.ingredientItem}>
-                    <span style={styles.ingredientName}>{ingredient.name}</span>
+                  <li key={idx} className={recipeStyles.ingredientItem}>
+                    <span className={recipeStyles.ingredientName}>
+                      {ingredient.name}
+                    </span>
                     {ingredient.quantity && (
-                      <span style={styles.ingredientQuantity}>
+                      <span className={recipeStyles.ingredientQuantity}>
                         {ingredient.quantity} {ingredient.unit || ""}
                       </span>
                     )}
                     {ingredient.notes && (
-                      <p style={styles.ingredientNotes}>{ingredient.notes}</p>
+                      <p className={recipeStyles.ingredientNotes}>
+                        {ingredient.notes}
+                      </p>
                     )}
                   </li>
                 ))}
@@ -353,10 +371,10 @@ export default function ParsePage() {
             </div>
 
             <div>
-              <h3 style={styles.sectionTitle}>Instructions</h3>
-              <ol style={styles.stepsList}>
+              <h3 className={recipeStyles.sectionTitle}>Instructions</h3>
+              <ol className={recipeStyles.stepsList}>
                 {result.steps.map((step, idx) => (
-                  <li key={idx} style={styles.stepItem}>
+                  <li key={idx} className={recipeStyles.stepItem}>
                     {step}
                   </li>
                 ))}

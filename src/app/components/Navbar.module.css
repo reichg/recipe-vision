@@ -1,0 +1,57 @@
+.navbar {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(0.5rem, 2vw, 1rem);
+  padding: clamp(0.5rem, 2vw, 0.75rem) clamp(1rem, 3vw, 2rem);
+  background: linear-gradient(90deg, #232526 0%, #414345 100%);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.logo {
+  flex-shrink: 0;
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: clamp(1.1rem, 3vw, 1.5rem);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.navLinks {
+  display: flex;
+  min-width: 0;
+  flex-shrink: 1;
+  gap: clamp(0.75rem, 2vw, 2rem);
+  margin: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0;
+  list-style: none;
+  scrollbar-width: thin;
+  scrollbar-color: #fff transparent;
+  -webkit-overflow-scrolling: touch;
+}
+
+.link {
+  display: inline-block;
+  flex-shrink: 0;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  color: #fff;
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: clamp(0.9rem, 2vw, 1.1rem);
+  transition: background 0.2s, color 0.2s;
+}
+
+.link:hover,
+.link:focus-visible {
+  background: #fff;
+  color: #232526;
+  outline: none;
+}

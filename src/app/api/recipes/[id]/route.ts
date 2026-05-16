@@ -1,54 +1,29 @@
-import { prisma } from "@/app/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 
+import { deleteRecipeById, getRecipeById } from "@/server/service/recipes";
+import { recipeParamsSchema } from "@/server/service/recipes-validation";
+import { createErrorResponse } from "@/server/shared/http";
+
 export async function GET(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await context.params;
   try {
-    const recipe = await prisma.recipe.findUnique({
-      where: { id },
-    });
-
-    if (!recipe) {
-      return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
-    }
-
-    return NextResponse.json({ recipe: recipe.json });
+    const { id } = recipeParamsSchema.parse(await context.params);
+    return NextResponse.json({ recipe: await getRecipeById(id) });
   } catch (error) {
-    console.error("Error fetching recipe:", error);
-    return NextResponse.json(
-      { error: "Failed to fetch recipe" },
-      { status: 500 }
-    );
+    return createErrorResponse(error, "Failed to fetch recipe");
   }
 }
 
 export async function DELETE(
-  request: NextRequest,
-  context: { params: Promise<{ id: string }> }
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await context.params;
   try {
-    const recipe = await prisma.recipe.findUnique({
-      where: { id },
-    });
-
-    if (!recipe) {
-      return NextResponse.json({ error: "Recipe not found" }, { status: 404 });
-    }
-
-    await prisma.recipe.delete({
-      where: { id },
-    });
-
-    return NextResponse.json({ success: true, message: "Recipe deleted" });
+    const { id } = recipeParamsSchema.parse(await context.params);
+    return NextResponse.json(await deleteRecipeById(id));
   } catch (error) {
-    console.error("Error deleting recipe:", error);
-    return NextResponse.json(
-      { error: "Failed to delete recipe" },
-      { status: 500 }
-    );
+    return createErrorResponse(error, "Failed to delete recipe");
   }
 }

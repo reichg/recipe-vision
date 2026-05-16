@@ -37,13 +37,15 @@ A modern web application that transforms recipe photos into structured, searchab
 ### Tech Stack
 
 - **Frontend**: Next.js 16 with React 19, TypeScript
-- **Backend**: Next.js API routes (Node.js)
+- **Backend**: Thin Next.js App Router API routes with server services
 - **Database**: PostgreSQL with Prisma ORM
 - **Cloud Storage**: AWS S3
 - **AI/ML**: Google Gemini 2.5 Pro API
 - **OCR**: OCR.Space API
 - **Validation**: Zod schema validation
-- **Styling**: Inline CSS with centralized style management and responsive design
+- **Styling**: Centralized TypeScript style modules
+
+Route handlers under `src/app/api` only parse requests, validate edge inputs, and map responses. Business logic, provider integrations, and database access live under `src/server`, while shared browser/server utilities live under `src/lib` and `src/schemas`.
 
 ### Project Structure
 
@@ -83,19 +85,32 @@ src/app/
 │   ├── Navbar.tsx             # Navigation bar component
 │   └── DatabaseHealthIndicator.tsx  # Database health indicator
 ├── lib/
+│   └── logger.ts              # Shared logging utility
+├── models/
+│   └── recipe.ts              # TypeScript recipe types
+├── schemas/
+│   └── recipeSchema.ts        # Shared recipe schemas
+├── server/
 │   ├── ai/
 │   │   ├── gemini.ts          # Gemini client initialization
 │   │   ├── ocr.ts             # OCR.Space text extraction
 │   │   └── extract.ts         # Recipe extraction from OCR text
+│   ├── config/
+│   │   └── env.ts             # Server env parsing and caching
 │   ├── db/
 │   │   ├── prisma.ts          # Prisma database client
-│   │   ├── db-ready.ts        # Database readiness check
-│   │   └── schema.ts          # Database schema utilities
-│   └── logger.ts              # Logging utility
-├── models/
-│   └── recipe.ts              # TypeScript recipe types
-├── schemas/
-│   └── recipeSchema.ts        # Zod validation schemas
+│   │   └── db-ready.ts        # Database readiness check
+│   ├── service/
+│   │   ├── batch-processing-validation.ts
+│   │   ├── batch-processing.ts
+│   │   ├── recipes-validation.ts
+│   │   ├── recipes.ts
+│   │   ├── s3-validation.ts
+│   │   └── s3.ts
+│   ├── shared/
+│   │   ├── errors.ts
+│   │   ├── http.ts
+│   │   └── timeout.ts
 ├── styles/
 │   ├── layout.styles.ts       # Layout styles
 │   ├── recipe.styles.ts       # Centralized recipe styles
@@ -131,7 +146,7 @@ src/app/
 2. **Install dependencies**
 
    ```bash
-   npm install
+   pnpm install
    ```
 
 3. **Set up environment variables**
@@ -139,25 +154,37 @@ src/app/
 
    ```env
    DATABASE_URL="postgresql://user:password@localhost:5432/recipe_parser"
+   MAX_UPLOAD_IMAGE_SIZE_BYTES="1048576"
    GEMINI_API_KEY="your-gemini-api-key"
    GEMINI_MODEL="gemini-2.5-pro"
+   GEMINI_TIMEOUT_MS="30000"
    OCRSPACE_API_KEY="your-ocr-space-api-key"
+   OCR_TIMEOUT_MS="30000"
    AWS_REGION="us-east-1"
    AWS_ACCESS_KEY_ID="your-aws-access-key"
    AWS_SECRET_ACCESS_KEY="your-aws-secret-key"
-   S3_BUCKET_NAME="your-s3-bucket-name"
+   AWS_S3_BUCKET="your-s3-bucket-name"
+   S3_UNPROCESSED_PREFIX="images/un-processed/"
+   S3_PROCESSED_PREFIX="images/processed/"
+   S3_SIGNED_URL_TTL_SECONDS="3600"
    ```
 
 4. **Set up the database**
 
    ```bash
-   npx prisma migrate dev
+   pnpm prisma migrate dev
    ```
+
+Generate the Prisma client if needed:
+
+```bash
+pnpm prisma generate
+```
 
 5. **Start the development server**
 
    ```bash
-   npm run dev
+   pnpm dev
    ```
 
 6. **Open in browser**
@@ -429,23 +456,29 @@ All styles are centralized in `src/app/styles/` for consistency and maintainabil
 
 ## 🔐 Environment Configuration
 
-| Variable                | Description                          | Required |
-| ----------------------- | ------------------------------------ | -------- |
-| `DATABASE_URL`          | PostgreSQL connection string         | Yes      |
-| `GEMINI_API_KEY`        | Google Gemini API key                | Yes      |
-| `GEMINI_MODEL`          | Model ID (default: `gemini-2.5-pro`) | No       |
-| `OCRSPACE_API_KEY`      | OCR.Space API key                    | No       |
-| `AWS_REGION`            | AWS region (e.g., `us-east-1`)       | Yes      |
-| `AWS_ACCESS_KEY_ID`     | AWS access key                       | Yes      |
-| `AWS_SECRET_ACCESS_KEY` | AWS secret access key                | Yes      |
-| `S3_BUCKET_NAME`        | S3 bucket name for image storage     | Yes      |
+| Variable                      | Description                                                                  | Required |
+| ----------------------------- | ---------------------------------------------------------------------------- | -------- |
+| `DATABASE_URL`                | PostgreSQL connection string                                                 | Yes      |
+| `MAX_UPLOAD_IMAGE_SIZE_BYTES` | Max upload size in bytes (default: `1048576`)                                | No       |
+| `GEMINI_API_KEY`              | Google Gemini API key                                                        | Yes      |
+| `GEMINI_MODEL`                | Model ID (default: `gemini-2.5-pro`)                                         | No       |
+| `GEMINI_TIMEOUT_MS`           | Gemini timeout in milliseconds (default: `30000`)                            | No       |
+| `OCRSPACE_API_KEY`            | OCR.Space API key                                                            | Yes      |
+| `OCR_TIMEOUT_MS`              | OCR timeout in milliseconds (default: `30000`)                               | No       |
+| `AWS_REGION`                  | AWS region (e.g., `us-east-1`)                                               | Yes      |
+| `AWS_ACCESS_KEY_ID`           | AWS access key                                                               | Yes      |
+| `AWS_SECRET_ACCESS_KEY`       | AWS secret access key                                                        | Yes      |
+| `AWS_S3_BUCKET`               | S3 bucket name for image storage                                             | Yes      |
+| `S3_UNPROCESSED_PREFIX`       | Prefix used for newly uploaded images (default: `images/un-processed/`)      | No       |
+| `S3_PROCESSED_PREFIX`         | Prefix used after successful batch processing (default: `images/processed/`) | No       |
+| `S3_SIGNED_URL_TTL_SECONDS`   | Signed image URL lifetime in seconds (default: `3600`)                       | No       |
 
 ## 🐛 Troubleshooting
 
 ### Missing Recipes
 
 - Ensure PostgreSQL is running and `DATABASE_URL` is correct
-- Run `npx prisma migrate dev` to set up the database
+- Run `pnpm prisma migrate dev` to set up the database
 
 ### Parse Failures
 
@@ -456,7 +489,7 @@ All styles are centralized in `src/app/styles/` for consistency and maintainabil
 ### Styling Issues
 
 - Clear Next.js cache: `rm -rf .next`
-- Rebuild: `npm run build`
+- Rebuild: `pnpm build`
 
 ## 📦 Dependencies
 
@@ -473,10 +506,12 @@ All styles are centralized in `src/app/styles/` for consistency and maintainabil
 ## 🛠️ Development Scripts
 
 ```bash
-npm run dev      # Start development server (http://localhost:3000)
-npm run build    # Build for production
-npm start        # Start production server
-npm run lint     # Run ESLint
+pnpm dev         # Start development server (http://localhost:3000)
+pnpm build       # Build for production
+pnpm start       # Start production server
+pnpm lint        # Run ESLint
+pnpm typecheck   # Run the TypeScript compiler
+pnpm test        # Run the Vitest suite
 ```
 
 ## 📚 Additional Resources

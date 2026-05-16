@@ -1,0 +1,508 @@
+.main {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: clamp(16px, 4vw, 40px);
+  font-family: var(--font-lora);
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.error {
+  border-left: 4px solid #c97c7c;
+  border-radius: 12px;
+  background-color: #f5e6e6;
+  color: #c97c7c;
+  font-size: 16px;
+  padding: 12px 16px;
+  white-space: pre-wrap;
+}
+
+.recipeContainer {
+  margin-top: 40px;
+  animation: fadeIn 0.6s ease-in;
+}
+
+.description {
+  margin-bottom: 28px;
+  color: #8b7355;
+  font-size: 18px;
+  font-style: italic;
+  line-height: 1.7;
+}
+
+.metricsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: clamp(12px, 2vw, 16px);
+  margin-bottom: 32px;
+}
+
+.metricCard {
+  border: 2px solid #ede5d9;
+  border-radius: 16px;
+  background-color: #f5e6d3;
+  box-shadow: 0 4px 15px rgba(212, 165, 116, 0.08);
+  padding: clamp(12px, 3vw, 20px);
+  transition: all 0.3s ease;
+}
+
+.metricLabel {
+  margin: 0 0 8px;
+  color: #8b7355;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.metricValue {
+  margin: 0;
+  color: #d4a574;
+  font-family: var(--font-playfair);
+  font-size: clamp(20px, 5vw, 28px);
+  font-weight: 700;
+}
+
+.tagsAllergenSection {
+  margin-bottom: 32px;
+}
+
+.allergenDivider {
+  margin-bottom: 12px;
+}
+
+.sectionLabel {
+  margin: 0 0 12px;
+  color: #8b7355;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.tagContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tag {
+  border: 1px solid #ede5d9;
+  border-radius: 20px;
+  background-color: #d4c5b0;
+  color: #5a4a3a;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 6px 14px;
+}
+
+.allergen {
+  border: 1px solid #ede5d9;
+  border-radius: 20px;
+  background-color: #e6cba8;
+  color: #5a4a3a;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 6px 14px;
+}
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  gap: clamp(20px, 4vw, 40px);
+  margin-bottom: 32px;
+}
+
+.sectionTitle {
+  margin-bottom: 24px;
+  color: #d4a574;
+  font-family: var(--font-playfair);
+  font-size: 26px;
+  font-weight: 700;
+}
+
+.ingredientList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ingredientItem {
+  border-bottom: 1px solid #ede5d9;
+  padding: 14px 0;
+}
+
+.ingredientName {
+  color: #5a4a3a;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.ingredientQuantity {
+  margin-left: 8px;
+  color: #8b7355;
+  font-size: 14px;
+}
+
+.ingredientNotes {
+  margin: 6px 0 0;
+  color: #8b7355;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.stepsList {
+  margin: 0;
+  padding-left: 24px;
+}
+
+.stepItem {
+  margin-bottom: 16px;
+  color: #5a4a3a;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.pageTitle {
+  margin-bottom: 8px;
+  color: #d4a574;
+  font-family: var(--font-playfair);
+  font-size: clamp(28px, 6vw, 42px);
+  font-weight: 700;
+}
+
+.pageSubtitle {
+  margin-top: 0;
+  margin-bottom: 28px;
+  color: #8b7355;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+}
+
+.previewBox {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-top: 12px;
+  border: 2px solid #ede5d9;
+  border-radius: 12px;
+  background-color: #f5e6d3;
+  padding: 16px;
+}
+
+.previewLabel {
+  margin: 0 0 12px;
+  color: #5a4a3a;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.headerContainer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: clamp(12px, 2vw, 20px);
+  margin-bottom: 24px;
+}
+
+.headerCentered {
+  width: 100%;
+  text-align: center;
+}
+
+.navButtons {
+  display: flex;
+  gap: 12px;
+}
+
+.plainLink {
+  text-decoration: none;
+}
+
+.navButton {
+  border: 2px solid #d4a574;
+  border-radius: 8px;
+  background: #fff;
+  color: #d4a574;
+  cursor: pointer;
+  font-family: var(--font-lora);
+  font-size: clamp(13px, 2vw, 14px);
+  font-weight: 600;
+  padding: clamp(8px, 2vw, 10px) clamp(12px, 3vw, 20px);
+  transition: all 0.2s ease;
+}
+
+.navButton:hover,
+.navButton:focus-visible {
+  background: #d4a574;
+  color: #fff;
+  outline: none;
+}
+
+.errorMessage {
+  color: crimson;
+}
+
+.centerText {
+  text-align: center;
+}
+
+.compactRecipesGrid {
+  display: grid;
+  grid-auto-rows: 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr));
+  gap: clamp(16px, 3vw, 24px);
+  border: 1px solid #000;
+  padding: clamp(12px, 3vw, 24px);
+}
+
+.noRecipesMessage {
+  grid-column: 1 / -1;
+  text-align: center;
+}
+
+.compactRecipeLink {
+  color: inherit;
+  text-decoration: none;
+}
+
+.compactRecipeLink:focus-visible {
+  outline: none;
+}
+
+.compactRecipeCard {
+  box-sizing: border-box;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  border: 1px solid #ede5d9;
+  border-radius: 12px;
+  background: #fff;
+  cursor: pointer;
+  padding: clamp(12px, 2.5vw, 16px);
+  transition: all 0.2s ease;
+}
+
+.compactRecipeCard:hover,
+.compactRecipeLink:focus-visible .compactRecipeCard {
+  border-color: #d4a574;
+  box-shadow: 0 8px 20px rgba(212, 165, 116, 0.15);
+  outline: none;
+  transform: translateY(-4px);
+}
+
+.compactRecipeTitle {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0 0 8px;
+  color: #d4a574;
+  font-family: var(--font-playfair);
+  font-size: 18px;
+  line-height: 1.3;
+  text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.compactRecipeDescription {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0 0 12px;
+  color: #8b7355;
+  font-size: 13px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.compactRecipeTagsContainer {
+  display: flex;
+  min-height: 24px;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.compactRecipeTag {
+  border-radius: 12px;
+  background-color: #f5e6d3;
+  color: #5a4a3a;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+}
+
+.compactRecipeTagMore {
+  color: #8b7355;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 8px;
+}
+
+.compactRecipeMetricsFooter {
+  display: flex;
+  gap: 12px;
+  margin-top: auto;
+  border-top: 1px solid #f5e6d3;
+  padding-top: 12px;
+}
+
+.compactRecipeMetricItem {
+  flex: 1;
+  text-align: center;
+}
+
+.compactRecipeMetricLabel {
+  color: #8b7355;
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.compactRecipeMetricValue {
+  margin-top: 2px;
+  color: #d4a574;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.paginationContainer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 2vw, 16px);
+  margin-top: 40px;
+  margin-bottom: 20px;
+}
+
+.paginationButton {
+  border: none;
+  border-radius: 8px;
+  background-color: #667eea;
+  color: #fff;
+  cursor: pointer;
+  font-size: clamp(12px, 2vw, 14px);
+  font-weight: 500;
+  padding: clamp(8px, 2vw, 10px) clamp(12px, 3vw, 20px);
+  transition: all 0.2s;
+}
+
+.paginationButtonDisabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.paginationPages {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(4px, 1vw, 8px);
+}
+
+.paginationPageButton {
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background-color: #fff;
+  cursor: pointer;
+  font-size: clamp(12px, 2vw, 14px);
+  padding: clamp(6px, 1.5vw, 8px) clamp(8px, 2vw, 12px);
+  transition: all 0.2s;
+}
+
+.paginationPageButtonActive {
+  border: 2px solid #667eea;
+  border-radius: 6px;
+  background-color: #f0f4ff;
+  color: #667eea;
+  cursor: pointer;
+  font-size: clamp(12px, 2vw, 14px);
+  font-weight: 600;
+  padding: clamp(6px, 1.5vw, 8px) clamp(8px, 2vw, 12px);
+  transition: all 0.2s;
+}
+
+.paginationPageButtonDisabled {
+  cursor: not-allowed;
+}
+
+.selectionControlsContainer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 2vw, 16px);
+  margin-top: 20px;
+  margin-bottom: 12px;
+}
+
+.selectAllLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: clamp(12px, 2vw, 14px);
+}
+
+.selectAllCheckbox {
+  cursor: pointer;
+}
+
+.deleteButton {
+  border: none;
+  border-radius: 8px;
+  background-color: #dc2626;
+  color: #fff;
+  cursor: pointer;
+  font-size: clamp(12px, 2vw, 14px);
+  font-weight: 600;
+  padding: clamp(6px, 1.5vw, 8px) clamp(12px, 3vw, 16px);
+}
+
+.deleteButtonDisabled {
+  background-color: #999;
+  cursor: not-allowed;
+}
+
+.recipeCardWrapper {
+  position: relative;
+}
+
+.recipeCardCheckbox {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 10;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.paginationInfoText {
+  margin-top: 20px;
+  margin-bottom: 20px;
+  color: #666;
+  font-size: 14px;
+  text-align: center;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
