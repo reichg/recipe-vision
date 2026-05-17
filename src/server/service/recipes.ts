@@ -1,6 +1,9 @@
 import { logger } from "@/lib/logger";
 import { RecipeFromSchema } from "@/schemas/recipeSchema";
-import { recipeFromOcrText } from "@/server/ai/extract";
+import {
+  recipeFromOcrText,
+  recipesFromOcrTextGroups,
+} from "@/server/ai/extract";
 import { ocrSpaceExtractText } from "@/server/ai/ocr";
 import { prisma } from "@/server/db/prisma";
 import { AppError } from "@/server/shared/errors";
@@ -13,6 +16,15 @@ type ListRecipesOptions = {
 };
 
 type CreateRecipeFromImagesOptions = {
+  sourceImageGroupKey?: string;
+};
+
+type ExtractRecipeFromOcrSegmentGroup = {
+  sourceImageGroupKey: string;
+  ocrSegments: string[];
+};
+
+type PersistRecipeOptions = {
   sourceImageGroupKey?: string;
 };
 
@@ -39,6 +51,18 @@ function isSourceImageGroupKeyConflict(error: unknown) {
   }
 
   return meta?.target === "sourceImageGroupKey";
+}
+
+function logParsedRecipe(
+  recipe: RecipeFromSchema,
+  sourceImageCount: number,
+  sourceImageGroupKey?: string,
+) {
+  logger.info("Recipe parsed successfully", {
+    title: recipe.title,
+    sourceImageCount,
+    sourceImageGroupKey,
+  });
 }
 
 export async function listRecipes({ page, limit }: ListRecipesOptions) {
@@ -97,8 +121,6 @@ export async function createRecipeFromImages(
   id: string;
   recipe: RecipeFromSchema;
 }> {
-  assertValidImageFiles(files);
-
   if (options.sourceImageGroupKey) {
     const existingRecipe = await findRecipeBySourceImageGroupKey(
       options.sourceImageGroupKey,
@@ -109,19 +131,71 @@ export async function createRecipeFromImages(
     }
   }
 
+  const ocrSegments = await extractOcrSegmentsFromImages(files);
+
+  const recipe = await recipeFromOcrText(ocrSegments);
+
+  logParsedRecipe(recipe, files.length, options.sourceImageGroupKey);
+
+  return persistRecipe(recipe, options);
+}
+
+export async function extractOcrSegmentsFromImages(files: File[]) {
+  assertValidImageFiles(files);
+
   const ocrSegments: string[] = [];
 
   for (const file of files) {
     ocrSegments.push(await ocrSpaceExtractText(file));
   }
 
-  const recipe = await recipeFromOcrText(ocrSegments);
+  return ocrSegments;
+}
 
-  logger.info("Recipe parsed successfully", {
-    title: recipe.title,
-    sourceImageCount: files.length,
+export async function extractRecipesFromOcrSegmentGroups(
+  groups: ExtractRecipeFromOcrSegmentGroup[],
+): Promise<Array<{ sourceImageGroupKey: string; recipe: RecipeFromSchema }>> {
+  if (groups.length === 0) {
+    return [];
+  }
+
+  const batchRecipeInputs = groups.map(({ ocrSegments }, index) => ({
+    recipeId: `recipe-${index + 1}`,
+    ocrSegments,
+  }));
+  const recipesById = new Map(
+    (await recipesFromOcrTextGroups(batchRecipeInputs)).map(
+      ({ recipeId, recipe }) => [recipeId, recipe],
+    ),
+  );
+
+  return groups.map(({ sourceImageGroupKey }, index) => {
+    const recipeId = `recipe-${index + 1}`;
+    const recipe = recipesById.get(recipeId);
+
+    if (!recipe) {
+      throw new AppError({
+        code: "LLM_INVALID_RESPONSE",
+        message: "Recipe extraction failed",
+        statusCode: 502,
+        cause: { recipeId, sourceImageGroupKey },
+      });
+    }
+
+    return {
+      sourceImageGroupKey,
+      recipe,
+    };
   });
+}
 
+export async function persistRecipe(
+  recipe: RecipeFromSchema,
+  options: PersistRecipeOptions = {},
+): Promise<{
+  id: string;
+  recipe: RecipeFromSchema;
+}> {
   let saved;
 
   try {

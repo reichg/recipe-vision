@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { MAX_UPLOAD_RECIPE_GROUPS } from "@/schemas/uploadGroupSchema";
 import { resetEnvCache } from "@/server/config/env";
 import { AppError } from "@/server/shared/errors";
 
 import {
   assertValidImageFile,
   getImageFilesFromFormData,
+  getImageUploadGroupsFromFormData,
   s3ObjectKeySchema,
 } from "./s3-validation";
 
@@ -100,5 +102,122 @@ describe("s3 validation", () => {
     formData.append("image", file);
 
     expect(getImageFilesFromFormData(formData)).toEqual([file]);
+  });
+
+  it("groups uploaded images based on the upload manifest", () => {
+    const formData = new FormData();
+    const firstFile = new File([new Uint8Array([1])], "recipe-1.jpg", {
+      type: "image/jpeg",
+    });
+    const secondFile = new File([new Uint8Array([2])], "recipe-1-b.jpg", {
+      type: "image/jpeg",
+    });
+    const thirdFile = new File([new Uint8Array([3])], "recipe-2.jpg", {
+      type: "image/jpeg",
+    });
+
+    formData.append("images", firstFile);
+    formData.append("images", secondFile);
+    formData.append("images", thirdFile);
+    formData.append(
+      "uploadGroups",
+      JSON.stringify([
+        { clientGroupId: "recipe-1", fileIndexes: [0, 1] },
+        { clientGroupId: "recipe-2", fileIndexes: [2] },
+      ]),
+    );
+
+    expect(getImageUploadGroupsFromFormData(formData)).toEqual({
+      groups: [
+        { clientGroupId: "recipe-1", files: [firstFile, secondFile] },
+        { clientGroupId: "recipe-2", files: [thirdFile] },
+      ],
+      usedManifest: true,
+    });
+  });
+
+  it("falls back to a single legacy upload group when no manifest is provided", () => {
+    const formData = new FormData();
+    const file = new File([new Uint8Array([1])], "recipe.jpg", {
+      type: "image/jpeg",
+    });
+
+    formData.append("images", file);
+
+    expect(getImageUploadGroupsFromFormData(formData)).toEqual({
+      groups: [{ clientGroupId: "group-1", files: [file] }],
+      usedManifest: false,
+    });
+  });
+
+  it("rejects upload manifests that reference missing images", () => {
+    const formData = new FormData();
+
+    formData.append(
+      "images",
+      new File([new Uint8Array([1])], "recipe.jpg", {
+        type: "image/jpeg",
+      }),
+    );
+    formData.append(
+      "uploadGroups",
+      JSON.stringify([{ clientGroupId: "recipe-1", fileIndexes: [1] }]),
+    );
+
+    expect(() => getImageUploadGroupsFromFormData(formData)).toThrow(
+      "Upload group references a missing image",
+    );
+  });
+
+  it("rejects upload manifests that leave files ungrouped", () => {
+    const formData = new FormData();
+
+    formData.append(
+      "images",
+      new File([new Uint8Array([1])], "recipe-1.jpg", {
+        type: "image/jpeg",
+      }),
+    );
+    formData.append(
+      "images",
+      new File([new Uint8Array([2])], "recipe-2.jpg", {
+        type: "image/jpeg",
+      }),
+    );
+    formData.append(
+      "uploadGroups",
+      JSON.stringify([{ clientGroupId: "recipe-1", fileIndexes: [0] }]),
+    );
+
+    expect(() => getImageUploadGroupsFromFormData(formData)).toThrow(
+      "Every uploaded image must belong to a recipe group",
+    );
+  });
+
+  it("rejects upload manifests that exceed the recipe-group limit", () => {
+    const formData = new FormData();
+
+    for (let index = 0; index <= MAX_UPLOAD_RECIPE_GROUPS; index += 1) {
+      formData.append(
+        "images",
+        new File([new Uint8Array([index])], `recipe-${index}.jpg`, {
+          type: "image/jpeg",
+        }),
+      );
+    }
+
+    formData.append(
+      "uploadGroups",
+      JSON.stringify(
+        Array.from({ length: MAX_UPLOAD_RECIPE_GROUPS + 1 }, (_, index) => ({
+          clientGroupId: `recipe-${index + 1}`,
+          fileIndexes: [index],
+        })),
+      ),
+    );
+
+    expect(() => getImageUploadGroupsFromFormData(formData)).toThrow(
+      `You can upload up to ${MAX_UPLOAD_RECIPE_GROUPS} recipe groups at once`,
+    );
   });
 });

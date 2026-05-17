@@ -17,6 +17,19 @@ type StructuredRecipeJsonRequest = {
   ocrSegments: string[];
 };
 
+type StructuredRecipeBatchJsonRequest = {
+  instructionText: string;
+  recipeInputs: Array<{
+    recipeId: string;
+    ocrSegments: string[];
+  }>;
+};
+
+type StructuredRecipePromptRequest = {
+  instructionText: string;
+  userPromptSections: string[];
+};
+
 type OpenAiCompatibleProvider = Exclude<LlmProviderName, "gemini">;
 
 const OPENAI_COMPATIBLE_ENDPOINTS: Record<OpenAiCompatibleProvider, string> = {
@@ -70,13 +83,29 @@ type ErrorWithStatus = {
   status?: unknown;
 };
 
-function buildOcrUserPrompt(ocrSegments: string[]) {
-  return ocrSegments
-    .map(
-      (segment, index) =>
-        `Recipe photo ${index + 1} OCR text:\n"""\n${segment}\n"""`,
-    )
-    .join("\n\n");
+function buildSingleRecipePromptSections(ocrSegments: string[]) {
+  return ocrSegments.map(
+    (segment, index) =>
+      `Recipe photo ${index + 1} OCR text:\n"""\n${segment}\n"""`,
+  );
+}
+
+function buildBatchRecipePromptSections(
+  recipeInputs: StructuredRecipeBatchJsonRequest["recipeInputs"],
+) {
+  return recipeInputs.map(({ recipeId, ocrSegments }) =>
+    [
+      `Recipe identifier ${recipeId}:`,
+      ...ocrSegments.map(
+        (segment, index) =>
+          `Recipe ${recipeId} photo ${index + 1} OCR text:\n"""\n${segment}\n"""`,
+      ),
+    ].join("\n\n"),
+  );
+}
+
+function buildUserPrompt(userPromptSections: string[]) {
+  return userPromptSections.join("\n\n");
 }
 
 function createLlmTimeoutError() {
@@ -192,7 +221,7 @@ function logLlmProviderRequestTelemetry(
 
 async function generateWithGemini(
   candidate: LlmModelCandidate,
-  request: StructuredRecipeJsonRequest,
+  request: StructuredRecipePromptRequest,
   timeoutMs: number,
 ) {
   const ai = getGeminiClient();
@@ -207,8 +236,8 @@ async function generateWithGemini(
             role: "user",
             parts: [
               { text: request.instructionText },
-              ...request.ocrSegments.map((segment, index) => ({
-                text: `Recipe photo ${index + 1} OCR text:\n"""\n${segment}\n"""`,
+              ...request.userPromptSections.map((section) => ({
+                text: section,
               })),
             ],
           },
@@ -247,7 +276,7 @@ async function generateWithGemini(
 
 async function generateWithOpenAiCompatibleProvider(
   candidate: LlmModelCandidate,
-  request: StructuredRecipeJsonRequest,
+  request: StructuredRecipePromptRequest,
   timeoutMs: number,
 ) {
   const provider = candidate.provider as OpenAiCompatibleProvider;
@@ -281,7 +310,7 @@ async function generateWithOpenAiCompatibleProvider(
             },
             {
               role: "user",
-              content: buildOcrUserPrompt(request.ocrSegments),
+              content: buildUserPrompt(request.userPromptSections),
             },
           ],
           temperature: 0.1,
@@ -388,8 +417,8 @@ async function generateWithOpenAiCompatibleProvider(
   return text;
 }
 
-export async function generateStructuredRecipeJsonText(
-  request: StructuredRecipeJsonRequest,
+async function generateStructuredRecipeResponseText(
+  request: StructuredRecipePromptRequest,
 ) {
   const { GEMINI_TIMEOUT_MS, LLM_MODEL_CANDIDATES } = getAiEnv();
 
@@ -447,5 +476,23 @@ export async function generateStructuredRecipeJsonText(
     message:
       "Recipe extraction is temporarily rate limited. Please try again later.",
     statusCode: 503,
+  });
+}
+
+export async function generateStructuredRecipeJsonText(
+  request: StructuredRecipeJsonRequest,
+) {
+  return generateStructuredRecipeResponseText({
+    instructionText: request.instructionText,
+    userPromptSections: buildSingleRecipePromptSections(request.ocrSegments),
+  });
+}
+
+export async function generateStructuredRecipeBatchJsonText(
+  request: StructuredRecipeBatchJsonRequest,
+) {
+  return generateStructuredRecipeResponseText({
+    instructionText: request.instructionText,
+    userPromptSections: buildBatchRecipePromptSections(request.recipeInputs),
   });
 }

@@ -6,6 +6,38 @@ import { useEffect, useState } from "react";
 import type { Recipe } from "../../models/recipe";
 import styles from "./recipe.module.css";
 
+type RecipeRecord = {
+  id: string;
+  json: Omit<Recipe, "id">;
+};
+
+type RecipesResponse = {
+  recipes?: RecipeRecord[];
+  pagination?: PaginationInfo;
+  error?: string;
+};
+
+function mapRecipeRecord(record: RecipeRecord): Recipe {
+  return {
+    id: record.id,
+    ...record.json,
+  };
+}
+
+async function fetchRecipesPage(page: number) {
+  const response = await fetch(`/api/recipes?page=${page}&limit=25`);
+  const data = (await response.json()) as RecipesResponse;
+
+  if (!response.ok) {
+    throw new Error(data.error ?? "Failed to load recipes");
+  }
+
+  return {
+    recipes: (data.recipes ?? []).map(mapRecipeRecord),
+    pagination: data.pagination ?? null,
+  };
+}
+
 interface PaginationInfo {
   page: number;
   limit: number;
@@ -25,6 +57,13 @@ export default function RecipesPage() {
     new Set(),
   );
   const [deleting, setDeleting] = useState(false);
+
+  const rangeStart =
+    pagination && recipes.length > 0
+      ? (pagination.page - 1) * pagination.limit + 1
+      : 0;
+  const rangeEnd =
+    pagination && recipes.length > 0 ? rangeStart + recipes.length - 1 : 0;
 
   const handleDeleteSelected = async () => {
     if (selectedRecipes.size === 0) return;
@@ -53,14 +92,10 @@ export default function RecipesPage() {
       // Refresh the recipes list
       setSelectedRecipes(new Set());
       setLoading(true);
-      const r = await fetch(`/api/recipes?page=${currentPage}&limit=25`);
-      const data = await r.json();
-      const mappedRecipes = (data.recipes ?? []).map((dbRecipe: any) => ({
-        id: dbRecipe.id,
-        ...(dbRecipe.json as Omit<Recipe, "id">),
-      }));
-      setRecipes(mappedRecipes);
-      setPagination(data.pagination);
+      const refreshedRecipes = await fetchRecipesPage(currentPage);
+
+      setRecipes(refreshedRecipes.recipes);
+      setPagination(refreshedRecipes.pagination);
       setLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to delete");
@@ -93,16 +128,12 @@ export default function RecipesPage() {
   useEffect(() => {
     let cancelled = false;
 
-    fetch(`/api/recipes?page=${currentPage}&limit=25`)
-      .then((r) => r.json())
+    setLoading(true);
+
+    fetchRecipesPage(currentPage)
       .then((data) => {
         if (cancelled) return;
-        // Map database records to Recipe type
-        const mappedRecipes = (data.recipes ?? []).map((dbRecipe: any) => ({
-          id: dbRecipe.id,
-          ...(dbRecipe.json as Omit<Recipe, "id">),
-        }));
-        setRecipes(mappedRecipes);
+        setRecipes(data.recipes);
         setPagination(data.pagination);
         setLoading(false);
       })
@@ -119,14 +150,35 @@ export default function RecipesPage() {
 
   return (
     <main className={styles.main}>
-      <div className={styles.headerContainer}>
+      <section className={styles.pageHero}>
         <div className={styles.headerCentered}>
+          <p className={styles.pageEyebrow}>Recipe Library</p>
           <h1 className={styles.pageTitle}>Saved Recipes</h1>
           <p className={styles.pageSubtitle}>
-            Recent parsed recipes from the service
+            Browse parsed recipes, review what is ready for cooking, and manage
+            the batches you want to keep.
           </p>
         </div>
-      </div>
+
+        <div className={styles.heroStats}>
+          <div className={styles.heroStatCard}>
+            <span className={styles.heroStatLabel}>Total recipes</span>
+            <strong className={styles.heroStatValue}>
+              {pagination?.total ?? recipes.length}
+            </strong>
+          </div>
+          <div className={styles.heroStatCard}>
+            <span className={styles.heroStatLabel}>Selected</span>
+            <strong className={styles.heroStatValue}>
+              {selectedRecipes.size}
+            </strong>
+          </div>
+          <div className={styles.heroStatCard}>
+            <span className={styles.heroStatLabel}>This page</span>
+            <strong className={styles.heroStatValue}>{recipes.length}</strong>
+          </div>
+        </div>
+      </section>
 
       {loading && <p className={styles.centerText}>Loading...</p>}
       {error && (
@@ -134,32 +186,43 @@ export default function RecipesPage() {
       )}
 
       {recipes.length > 0 && (
-        <div className={styles.selectionControlsContainer}>
-          <label className={styles.selectAllLabel}>
-            <input
-              type="checkbox"
-              checked={
-                selectedRecipes.size === recipes.length && recipes.length > 0
-              }
-              onChange={toggleSelectAll}
-              className={styles.selectAllCheckbox}
-            />
-            Select All
-          </label>
-          {selectedRecipes.size > 0 && (
-            <button
-              onClick={handleDeleteSelected}
-              disabled={deleting}
-              className={`${styles.deleteButton} ${
-                deleting ? styles.deleteButtonDisabled : ""
-              }`}
-            >
-              {deleting
-                ? "Deleting..."
-                : `Delete ${selectedRecipes.size} Selected`}
-            </button>
-          )}
-        </div>
+        <section className={styles.selectionControlsContainer}>
+          <div className={styles.toolbarSummary}>
+            {pagination ? (
+              <>
+                Showing {rangeStart}-{rangeEnd} of {pagination.total}
+              </>
+            ) : (
+              <>Showing {recipes.length} recipes</>
+            )}
+          </div>
+          <div className={styles.toolbarActions}>
+            <label className={styles.selectAllLabel}>
+              <input
+                type="checkbox"
+                checked={
+                  selectedRecipes.size === recipes.length && recipes.length > 0
+                }
+                onChange={toggleSelectAll}
+                className={styles.selectAllCheckbox}
+              />
+              Select all on page
+            </label>
+            {selectedRecipes.size > 0 && (
+              <button
+                onClick={handleDeleteSelected}
+                disabled={deleting}
+                className={`${styles.deleteButton} ${
+                  deleting ? styles.deleteButtonDisabled : ""
+                }`}
+              >
+                {deleting
+                  ? "Deleting..."
+                  : `Delete ${selectedRecipes.size} Selected`}
+              </button>
+            )}
+          </div>
+        </section>
       )}
 
       {pagination && (
@@ -168,85 +231,123 @@ export default function RecipesPage() {
           {pagination.page} of {pagination.totalPages})
         </div>
       )}
+
       <div className={styles.compactRecipesGrid}>
         {recipes.length === 0 && !loading && (
           <p className={styles.noRecipesMessage}>No recipes found.</p>
         )}
 
-        {recipes.map((r, idx) => (
-          <div key={idx} className={styles.recipeCardWrapper}>
-            <input
-              type="checkbox"
-              checked={selectedRecipes.has(r.id)}
-              onChange={(e) => {
-                e.stopPropagation();
-                toggleRecipeSelection(r.id);
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className={styles.recipeCardCheckbox}
-            />
-            <Link
-              href={`/recipes/${r.id}`}
-              className={styles.compactRecipeLink}
-            >
-              <div className={styles.compactRecipeCard}>
-                <h3 className={styles.compactRecipeTitle}>{r.title}</h3>
+        {recipes.map((recipe, index) => {
+          const recipeNumber =
+            pagination && pagination.limit > 0
+              ? (pagination.page - 1) * pagination.limit + index + 1
+              : index + 1;
 
-                {r.description && (
-                  <p className={styles.compactRecipeDescription}>
-                    {r.description}
-                  </p>
-                )}
+          return (
+            <article key={recipe.id} className={styles.recipeCardWrapper}>
+              <div className={styles.recipeCardSelectionRow}>
+                <label className={styles.recipeCardCheckboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={selectedRecipes.has(recipe.id)}
+                    onChange={(event) => {
+                      event.stopPropagation();
+                      toggleRecipeSelection(recipe.id);
+                    }}
+                    onClick={(event) => event.stopPropagation()}
+                    className={styles.recipeCardCheckbox}
+                  />
+                  Select
+                </label>
+                <span className={styles.recipeCardNumber}>#{recipeNumber}</span>
+              </div>
 
-                <div className={styles.compactRecipeTagsContainer}>
-                  {r.tags?.slice(0, 3).map((t) => (
-                    <span key={t} className={styles.compactRecipeTag}>
-                      {t}
+              <Link
+                href={`/recipes/${recipe.id}`}
+                className={styles.compactRecipeLink}
+              >
+                <div className={styles.compactRecipeCard}>
+                  <div className={styles.recipeCardHeader}>
+                    <p className={styles.recipeCardEyebrow}>Saved recipe</p>
+                    <h3 className={styles.compactRecipeTitle}>
+                      {recipe.title}
+                    </h3>
+                    <p className={styles.compactRecipeDescription}>
+                      {recipe.description ||
+                        "Structured ingredients, timing, and steps are ready to review."}
+                    </p>
+                  </div>
+
+                  <div className={styles.compactRecipeTagsContainer}>
+                    {recipe.tags?.slice(0, 3).map((tag) => (
+                      <span key={tag} className={styles.compactRecipeTag}>
+                        {tag}
+                      </span>
+                    ))}
+                    {(recipe.tags?.length ?? 0) > 3 && (
+                      <span className={styles.compactRecipeTagMore}>
+                        +{(recipe.tags?.length ?? 0) - 3} more
+                      </span>
+                    )}
+                    {!recipe.tags?.length && (
+                      <span className={styles.compactRecipeTagMuted}>
+                        Ready for review
+                      </span>
+                    )}
+                  </div>
+
+                  <div className={styles.recipeHighlights}>
+                    <span className={styles.recipeHighlight}>
+                      {recipe.ingredients.length} ingredient
+                      {recipe.ingredients.length === 1 ? "" : "s"}
                     </span>
-                  ))}
-                  {(r.tags?.length ?? 0) > 3 && (
-                    <span className={styles.compactRecipeTagMore}>
-                      +{(r.tags?.length ?? 0) - 3}
+                    <span className={styles.recipeHighlight}>
+                      {recipe.steps.length} step
+                      {recipe.steps.length === 1 ? "" : "s"}
                     </span>
-                  )}
-                </div>
+                    {recipe.allergens?.length ? (
+                      <span className={styles.recipeHighlightMuted}>
+                        {recipe.allergens.length} allergen flag
+                        {recipe.allergens.length === 1 ? "" : "s"}
+                      </span>
+                    ) : null}
+                  </div>
 
-                <div className={styles.compactRecipeMetricsFooter}>
-                  {r.servings && (
+                  <div className={styles.compactRecipeMetricsFooter}>
                     <div className={styles.compactRecipeMetricItem}>
                       <div className={styles.compactRecipeMetricLabel}>
                         Servings
                       </div>
                       <div className={styles.compactRecipeMetricValue}>
-                        {r.servings}
+                        {recipe.servings ?? "-"}
                       </div>
                     </div>
-                  )}
-                  {r.totalTimeMinutes && (
                     <div className={styles.compactRecipeMetricItem}>
                       <div className={styles.compactRecipeMetricLabel}>
                         Time
                       </div>
                       <div className={styles.compactRecipeMetricValue}>
-                        {r.totalTimeMinutes}m
+                        {recipe.totalTimeMinutes
+                          ? `${recipe.totalTimeMinutes}m`
+                          : "-"}
                       </div>
                     </div>
-                  )}
-                  {r.ingredients && (
                     <div className={styles.compactRecipeMetricItem}>
                       <div className={styles.compactRecipeMetricLabel}>
                         Items
                       </div>
                       <div className={styles.compactRecipeMetricValue}>
-                        {r.ingredients.length}
+                        {recipe.ingredients.length}
                       </div>
                     </div>
-                  )}
+                  </div>
+
+                  <div className={styles.recipeCardAction}>Open recipe</div>
                 </div>
-              </div>
-            </Link>
-          </div>
-        ))}
+              </Link>
+            </article>
+          );
+        })}
       </div>
 
       {pagination && pagination.totalPages > 1 && (

@@ -49,7 +49,10 @@ vi.mock("./gemini", () => ({
     (error as { status?: number }).status === 429,
 }));
 
-import { generateStructuredRecipeJsonText } from "./llm";
+import {
+  generateStructuredRecipeBatchJsonText,
+  generateStructuredRecipeJsonText,
+} from "./llm";
 
 describe("generateStructuredRecipeJsonText", () => {
   afterEach(() => {
@@ -247,5 +250,66 @@ describe("generateStructuredRecipeJsonText", () => {
     });
 
     expect(mocks.generateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("serializes multiple recipes into one LLM request with stable identifiers", async () => {
+    mocks.generateContent.mockResolvedValue({
+      sdkHttpResponse: {
+        headers: {},
+        responseInternal: new Response(null, { status: 200 }),
+      },
+      text: JSON.stringify({
+        recipes: [
+          {
+            recipeId: "recipe-1",
+            recipe: {
+              title: "Tomato Soup",
+              ingredients: [{ name: "Tomatoes" }],
+              steps: ["Simmer."],
+            },
+          },
+          {
+            recipeId: "recipe-2",
+            recipe: {
+              title: "Grilled Cheese",
+              ingredients: [{ name: "Bread" }],
+              steps: ["Toast."],
+            },
+          },
+        ],
+      }),
+    });
+
+    await expect(
+      generateStructuredRecipeBatchJsonText({
+        instructionText: "Return JSON only",
+        recipeInputs: [
+          {
+            recipeId: "recipe-1",
+            ocrSegments: ["Title: Tomato Soup", "Steps: Simmer."],
+          },
+          {
+            recipeId: "recipe-2",
+            ocrSegments: ["Title: Grilled Cheese", "Steps: Toast."],
+          },
+        ],
+      }),
+    ).resolves.toContain('"recipeId":"recipe-1"');
+
+    expect(mocks.generateContent).toHaveBeenCalledTimes(1);
+
+    const parts =
+      mocks.generateContent.mock.calls[0]?.[0]?.contents?.[0]?.parts;
+
+    expect(parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          text: expect.stringContaining("Recipe identifier recipe-1:"),
+        }),
+        expect.objectContaining({
+          text: expect.stringContaining("Recipe recipe-2 photo 1 OCR text"),
+        }),
+      ]),
+    );
   });
 });

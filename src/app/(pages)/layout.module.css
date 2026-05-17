@@ -1,10 +1,125 @@
 .body {
+  --page-max-width: 1200px;
+  --surface-base: rgba(255, 253, 249, 0.78);
+  --surface-raised: rgba(255, 255, 255, 0.9);
+  --surface-muted: rgba(244, 236, 224, 0.84);
+  --surface-accent: rgba(255, 238, 219, 0.94);
+  --border-soft: rgba(31, 27, 24, 0.08);
+  --border-strong: rgba(31, 27, 24, 0.16);
+  --text-primary: #1f1b18;
+  --text-secondary: #544d44;
+  --text-muted: #7a7268;
+  --accent-primary: #d06e3f;
+  --accent-primary-strong: #a84e2a;
+  --accent-secondary: #295d52;
+  --accent-secondary-soft: rgba(218, 234, 228, 0.9);
+  --accent-highlight: #f2c9a4;
+  --info-soft: rgba(222, 236, 242, 0.92);
+  --info-strong: #315f73;
+  --success-soft: rgba(221, 238, 226, 0.92);
+  --success-strong: #2d6a52;
+  --danger-soft: rgba(248, 223, 221, 0.94);
+  --danger-strong: #b44b48;
+  --warning-soft: rgba(250, 235, 212, 0.94);
+  --warning-strong: #9b6831;
+  --shadow-soft: 0 24px 60px rgba(34, 24, 16, 0.08);
+  --shadow-strong: 0 32px 80px rgba(23, 18, 13, 0.14);
+  --focus-ring: rgba(41, 93, 82, 0.28);
   margin: 0;
   min-height: 100vh;
-  font-family: var(--font-lora), "Lora", serif;
+  color: var(--text-primary);
+  font-family: var(--font-lora), "Space Grotesk", sans-serif;
   background:
-    linear-gradient(135deg, rgba(254, 245, 241, 0.95) 0%, rgba(254, 249, 243, 0.95) 50%, rgba(245, 230, 211, 0.9) 100%),
-    radial-gradient(circle at 20% 80%, rgba(232, 184, 160, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(201, 168, 135, 0.08) 0%, transparent 50%);
-  background-color: #fef5f1;
+    radial-gradient(
+      circle at 14% 14%,
+      rgba(208, 110, 63, 0.18) 0%,
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 86% 12%,
+      rgba(41, 93, 82, 0.16) 0%,
+      transparent 24%
+    ),
+    radial-gradient(
+      circle at 50% 82%,
+      rgba(242, 201, 164, 0.2) 0%,
+      transparent 28%
+    ),
+    linear-gradient(180deg, #faf4eb 0%, #f3ece2 42%, #f8f3ec 100%);
+  background-attachment: fixed;
+}
+
+.shell {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.backgroundMesh,
+.backgroundGlow {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+}
+
+.backgroundMesh {
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(31, 27, 24, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31, 27, 24, 0.045) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: radial-gradient(circle at center, black 0%, transparent 78%);
+  opacity: 0.3;
+}
+
+.backgroundGlow {
+  z-index: 0;
+  background:
+    radial-gradient(
+      circle at 12% 20%,
+      rgba(255, 225, 193, 0.82) 0%,
+      transparent 26%
+    ),
+    radial-gradient(
+      circle at 82% 16%,
+      rgba(208, 232, 225, 0.72) 0%,
+      transparent 22%
+    ),
+    radial-gradient(
+      circle at 54% 72%,
+      rgba(255, 239, 223, 0.76) 0%,
+      transparent 28%
+    );
+  filter: blur(10px);
+  opacity: 0.96;
+  animation: ambientShift 18s ease-in-out infinite alternate;
+}
+
+.content {
+  position: relative;
+  z-index: 1;
+  padding-bottom: 4rem;
+}
+
+@media (max-width: 720px) {
+  .content {
+    padding-bottom: 5.5rem;
+  }
+}
+
+@keyframes ambientShift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  to {
+    transform: translate3d(0, -1.5%, 0) scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .backgroundGlow {
+    animation: none;
+  }
 }
