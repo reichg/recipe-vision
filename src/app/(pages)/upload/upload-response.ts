@@ -1,59 +1,44 @@
-import { Recipe } from "../../models/recipe";
-
-export type RecipePayload = Omit<Recipe, "id">;
-
-export type RecipeApiResponse = {
-  id: string;
-  recipe: RecipePayload;
-  error?: string;
-};
-
 export type UploadApiResponse = {
+  success?: boolean;
+  groupKey?: string;
+  groupCount?: number;
+  totalImageCount?: number;
+  uploads?: Array<{
+    key: string;
+    url: string;
+  }>;
+  groups?: Array<{
+    clientGroupId?: string;
+    groupKey: string;
+    imageCount?: number;
+    uploads: Array<{
+      key: string;
+      url: string;
+    }>;
+    message?: string;
+  }>;
   message?: string;
   error?: string;
-  processing?:
-    | {
-        status: "completed";
-        recipeId: string;
-        recipe: RecipePayload;
-        warning?: string;
-      }
-    | {
-        status: "failed";
-        error: string;
-      };
 };
 
-export function toRecipeResult(id: string, recipe: RecipePayload): Recipe {
-  return {
-    ...recipe,
-    id,
-  };
-}
-
-export function getRecipeFromUploadResponse(
-  response: UploadApiResponse,
-): Recipe | null {
-  if (!response.processing || response.processing.status === "failed") {
-    return null;
+export function getUploadSuccessMessage(response: UploadApiResponse): string {
+  if (response.message) {
+    return response.message;
   }
 
-  return toRecipeResult(
-    response.processing.recipeId,
-    response.processing.recipe,
-  );
-}
+  if (response.groups?.length) {
+    const groupCount = response.groupCount ?? response.groups.length;
+    const imageCount =
+      response.totalImageCount ??
+      response.groups.reduce(
+        (totalUploads, group) => totalUploads + group.uploads.length,
+        0,
+      );
 
-export function getUploadProcessingError(
-  response: UploadApiResponse,
-): string | null {
-  if (!response.processing) {
-    return response.message ?? "Automatic processing failed after upload";
+    return `Uploaded ${imageCount} image${imageCount === 1 ? "" : "s"} across ${groupCount} recipe group${groupCount === 1 ? "" : "s"} successfully`;
   }
 
-  if (response.processing.status === "failed") {
-    return response.processing.error;
-  }
+  const uploadCount = response.uploads?.length ?? 0;
 
-  return null;
+  return `Uploaded ${uploadCount} image${uploadCount === 1 ? "" : "s"} successfully`;
 }

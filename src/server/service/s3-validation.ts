@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+import {
+  uploadGroupManifestSchema,
+  type UploadGroupManifest,
+} from "@/schemas/uploadGroupSchema";
 import { getUploadEnv } from "@/server/config/env";
 import { AppError } from "@/server/shared/errors";
 
@@ -43,6 +47,86 @@ export const s3PrefixSchema = z
   .refine((value) => value === "" || isSafeS3Path(value), "Invalid prefix");
 
 const allowedImageFormFieldNames = new Set(["image", "images"]);
+
+export type ImageUploadGroup = {
+  clientGroupId: string;
+  files: File[];
+};
+
+export type ParsedImageUploadGroups = {
+  groups: ImageUploadGroup[];
+  usedManifest: boolean;
+};
+
+function getUploadGroupManifest(
+  formData: FormData,
+): UploadGroupManifest | null {
+  const rawManifestEntries = formData.getAll("uploadGroups");
+
+  if (rawManifestEntries.length === 0) {
+    return null;
+  }
+
+  if (
+    rawManifestEntries.length > 1 ||
+    typeof rawManifestEntries[0] !== "string"
+  ) {
+    throw new AppError({
+      code: "INVALID_UPLOAD_GROUPS",
+      message: "Invalid upload group metadata",
+      statusCode: 400,
+    });
+  }
+
+  try {
+    return uploadGroupManifestSchema.parse(JSON.parse(rawManifestEntries[0]));
+  } catch (error) {
+    if (error instanceof SyntaxError) {
+      throw new AppError({
+        code: "INVALID_UPLOAD_GROUPS",
+        message: "Upload group metadata must be valid JSON",
+        statusCode: 400,
+      });
+    }
+
+    throw error;
+  }
+}
+
+function mapFilesToUploadGroups(
+  files: File[],
+  manifest: UploadGroupManifest,
+): ImageUploadGroup[] {
+  const maxFileIndex = files.length - 1;
+  const referencedFileIndexes = new Set<number>();
+
+  const groups = manifest.map((group) => ({
+    clientGroupId: group.clientGroupId,
+    files: group.fileIndexes.map((fileIndex) => {
+      if (fileIndex > maxFileIndex) {
+        throw new AppError({
+          code: "INVALID_UPLOAD_GROUPS",
+          message: "Upload group references a missing image",
+          statusCode: 400,
+        });
+      }
+
+      referencedFileIndexes.add(fileIndex);
+
+      return files[fileIndex];
+    }),
+  }));
+
+  if (referencedFileIndexes.size !== files.length) {
+    throw new AppError({
+      code: "INVALID_UPLOAD_GROUPS",
+      message: "Every uploaded image must belong to a recipe group",
+      statusCode: 400,
+    });
+  }
+
+  return groups;
+}
 
 export function assertValidImageFile(file: File): void {
   const { MAX_UPLOAD_IMAGE_SIZE_BYTES } = getUploadEnv();
@@ -106,4 +190,23 @@ export function getImageFilesFromFormData(formData: FormData) {
   assertValidImageFiles(files);
 
   return files;
+}
+
+export function getImageUploadGroupsFromFormData(
+  formData: FormData,
+): ParsedImageUploadGroups {
+  const files = getImageFilesFromFormData(formData);
+  const manifest = getUploadGroupManifest(formData);
+
+  if (!manifest) {
+    return {
+      groups: [{ clientGroupId: "group-1", files }],
+      usedManifest: false,
+    };
+  }
+
+  return {
+    groups: mapFilesToUploadGroups(files, manifest),
+    usedManifest: true,
+  };
 }

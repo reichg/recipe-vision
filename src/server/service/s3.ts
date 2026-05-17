@@ -11,14 +11,43 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { logger } from "@/lib/logger";
 import { getS3Env } from "@/server/config/env";
-import { AppError } from "@/server/shared/errors";
+import { AppError, getPublicError, isAppError } from "@/server/shared/errors";
 
 import {
   allowedImageExtensions,
   assertValidImageFiles,
+  type ImageUploadGroup,
   s3ObjectKeySchema,
   s3PrefixSchema,
 } from "./s3-validation";
+
+type UploadedImage = {
+  key: string;
+  url: string;
+};
+
+type UploadImagesResult = {
+  success: true;
+  groupKey: string;
+  uploads: UploadedImage[];
+  message: string;
+};
+
+type UploadImageGroupResult = {
+  clientGroupId: string;
+  groupKey: string;
+  uploads: UploadedImage[];
+  imageCount: number;
+  message: string;
+};
+
+export type UploadImageGroupsResult = {
+  success: true;
+  groupCount: number;
+  totalImageCount: number;
+  groups: UploadImageGroupResult[];
+  message: string;
+};
 
 export type ProcessableImageGroup = {
   key: string;
@@ -26,6 +55,18 @@ export type ProcessableImageGroup = {
 };
 
 let cachedS3Client: S3Client | undefined;
+
+function logUploadTelemetry(
+  level: "info" | "warn" | "error",
+  step: string,
+  data: Record<string, unknown>,
+) {
+  logger[level]("Upload telemetry", {
+    flow: "upload",
+    step,
+    ...data,
+  });
+}
 
 function getS3Client() {
   const { AWS_ACCESS_KEY_ID, AWS_REGION, AWS_SECRET_ACCESS_KEY } = getS3Env();
@@ -154,30 +195,56 @@ export async function uploadImages(files: File[]) {
 
   const { AWS_S3_BUCKET, S3_UNPROCESSED_PREFIX } = getS3Env();
   const groupKey = `${normalizeConfiguredPrefix(S3_UNPROCESSED_PREFIX)}${randomUUID()}/`;
-  const uploads: Array<{ key: string; url: string }> = [];
+  const uploads: UploadedImage[] = [];
+  const startedAt = Date.now();
 
-  for (const [index, file] of files.entries()) {
-    const key = `${groupKey}${String(index + 1).padStart(2, "0")}-${sanitizeFileName(file.name)}`;
-    const buffer = Buffer.from(await file.arrayBuffer());
+  logUploadTelemetry("info", "started", {
+    groupKey,
+    imageCount: files.length,
+  });
 
-    await getS3Client().send(
-      new PutObjectCommand({
-        Bucket: AWS_S3_BUCKET,
-        Key: key,
-        Body: buffer,
-        ContentType: file.type,
-      }),
-    );
+  try {
+    for (const [index, file] of files.entries()) {
+      const key = `${groupKey}${String(index + 1).padStart(2, "0")}-${sanitizeFileName(file.name)}`;
+      const buffer = Buffer.from(await file.arrayBuffer());
 
-    uploads.push({
-      key,
-      url: await getSignedImageUrl(key),
+      await getS3Client().send(
+        new PutObjectCommand({
+          Bucket: AWS_S3_BUCKET,
+          Key: key,
+          Body: buffer,
+          ContentType: file.type,
+        }),
+      );
+
+      uploads.push({
+        key,
+        url: await getSignedImageUrl(key),
+      });
+    }
+  } catch (error) {
+    const publicError = getPublicError(error, "Failed to upload images");
+
+    logUploadTelemetry("error", "failed", {
+      groupKey,
+      imageCount: files.length,
+      uploadedCount: uploads.length,
+      durationMs: Date.now() - startedAt,
+      errorCode: isAppError(error) ? error.code : undefined,
+      errorMessage: publicError.message,
     });
+
+    throw error;
   }
 
   logger.info("Images uploaded successfully", {
     groupKey,
     imageCount: uploads.length,
+  });
+  logUploadTelemetry("info", "completed", {
+    groupKey,
+    imageCount: uploads.length,
+    durationMs: Date.now() - startedAt,
   });
 
   return {
@@ -185,6 +252,52 @@ export async function uploadImages(files: File[]) {
     groupKey,
     uploads,
     message: `Uploaded ${uploads.length} image${uploads.length === 1 ? "" : "s"} successfully`,
+  } satisfies UploadImagesResult;
+}
+
+export async function uploadImageGroups(
+  uploadGroups: ImageUploadGroup[],
+): Promise<UploadImageGroupsResult> {
+  const startedAt = Date.now();
+  const groupResults: UploadImageGroupResult[] = [];
+
+  logUploadTelemetry("info", "multi-group.started", {
+    groupCount: uploadGroups.length,
+    totalImageCount: uploadGroups.reduce(
+      (imageCount, uploadGroup) => imageCount + uploadGroup.files.length,
+      0,
+    ),
+  });
+
+  for (const uploadGroup of uploadGroups) {
+    const groupResult = await uploadImages(uploadGroup.files);
+
+    groupResults.push({
+      clientGroupId: uploadGroup.clientGroupId,
+      groupKey: groupResult.groupKey,
+      uploads: groupResult.uploads,
+      imageCount: groupResult.uploads.length,
+      message: groupResult.message,
+    });
+  }
+
+  const totalImageCount = groupResults.reduce(
+    (imageCount, groupResult) => imageCount + groupResult.imageCount,
+    0,
+  );
+
+  logUploadTelemetry("info", "multi-group.completed", {
+    groupCount: groupResults.length,
+    totalImageCount,
+    durationMs: Date.now() - startedAt,
+  });
+
+  return {
+    success: true,
+    groupCount: groupResults.length,
+    totalImageCount,
+    groups: groupResults,
+    message: `Uploaded ${totalImageCount} image${totalImageCount === 1 ? "" : "s"} across ${groupResults.length} recipe group${groupResults.length === 1 ? "" : "s"} successfully`,
   };
 }
 

@@ -1,147 +1,193 @@
 "use client";
 
 import { logger } from "@/lib/logger";
+import { MAX_UPLOAD_RECIPE_GROUPS } from "@/schemas/uploadGroupSchema";
 import Image from "next/image";
-import { useState } from "react";
-import { Recipe } from "../../models/recipe";
+import { useEffect, useId, useRef, useState } from "react";
+
 import recipeStyles from "../recipes/recipe.module.css";
 import styles from "./page.module.css";
 import {
-  getRecipeFromUploadResponse,
-  getUploadProcessingError,
-  type RecipeApiResponse,
-  toRecipeResult,
+  buildUploadFormData,
+  createClientId,
+  createInitialUploadGroups,
+  getFilledUploadGroups,
+  getOversizedUploadFiles,
+  getTotalImageCount,
+  type UploadGroupImage,
+  type UploadGroupSelection,
+} from "./upload-form";
+import {
+  getUploadSuccessMessage,
   type UploadApiResponse,
 } from "./upload-response";
 
+function revokePreviewUrls(images: UploadGroupImage[]) {
+  images.forEach((image) => {
+    URL.revokeObjectURL(image.previewUrl);
+  });
+}
+
 export default function ParsePage() {
-  const [files, setFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [result, setResult] = useState<Recipe | null>(null);
+  const [groups, setGroups] = useState<UploadGroupSelection[]>(
+    createInitialUploadGroups,
+  );
   const [error, setError] = useState<string | null>(null);
   const [uploadedToS3, setUploadedToS3] = useState(false);
   const [s3UploadSuccess, setS3UploadSuccess] = useState<string | null>(null);
+  const uploadGroupInputIdPrefix = useId();
+  const groupsRef = useRef(groups);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setResult(null);
+  useEffect(() => {
+    groupsRef.current = groups;
+  }, [groups]);
 
-    if (files.length === 0) {
-      setError("Pick at least one image first.");
-      setTimeout(() => setError(null), 3000);
+  useEffect(() => {
+    return () => {
+      groupsRef.current.forEach((group) => {
+        revokePreviewUrls(group.images);
+      });
+    };
+  }, []);
+
+  const filledGroups = getFilledUploadGroups(groups);
+  const totalImageCount = getTotalImageCount(filledGroups);
+
+  function resetGroups() {
+    groupsRef.current.forEach((group) => {
+      revokePreviewUrls(group.images);
+    });
+
+    setGroups(createInitialUploadGroups());
+  }
+
+  function appendFilesToGroup(groupId: string, selectedFiles: File[]) {
+    if (selectedFiles.length === 0) {
       return;
     }
 
-    const oversizedFiles = files.filter(
-      (selectedFile) => selectedFile.size > 1024 * 1024,
-    );
+    const oversizedFiles = getOversizedUploadFiles(selectedFiles);
 
     if (oversizedFiles.length > 0) {
       setError(
         `The following image${oversizedFiles.length > 1 ? "s are" : " is"} too large (max 1024 KB):\n` +
-          oversizedFiles
-            .map((selectedFile) => `- ${selectedFile.name}`)
-            .join("\n"),
+          oversizedFiles.map((file) => `- ${file.name}`).join("\n"),
       );
-      setTimeout(() => setError(null), 4000);
+      setTimeout(() => setError(null), 5000);
       return;
     }
 
-    try {
-      const form = new FormData();
-      for (const file of files) {
-        form.append("images", file);
+    const nextImages = selectedFiles.map((file) => ({
+      id: createClientId(),
+      file,
+      previewUrl: URL.createObjectURL(file),
+    }));
+
+    setGroups((currentGroups) =>
+      currentGroups.map((group) =>
+        group.id === groupId
+          ? { ...group, images: [...group.images, ...nextImages] }
+          : group,
+      ),
+    );
+    setS3UploadSuccess(null);
+  }
+
+  function removeImage(groupId: string, imageId: string) {
+    setGroups((currentGroups) =>
+      currentGroups.map((group) => {
+        if (group.id !== groupId) {
+          return group;
+        }
+
+        const imageToRemove = group.images.find(
+          (image) => image.id === imageId,
+        );
+
+        if (imageToRemove) {
+          URL.revokeObjectURL(imageToRemove.previewUrl);
+        }
+
+        return {
+          ...group,
+          images: group.images.filter((image) => image.id !== imageId),
+        };
+      }),
+    );
+  }
+
+  function removeGroup(groupId: string) {
+    if (groups.length === 1) {
+      resetGroups();
+      return;
+    }
+
+    setGroups((currentGroups) => {
+      const groupToRemove = currentGroups.find((group) => group.id === groupId);
+
+      if (groupToRemove) {
+        revokePreviewUrls(groupToRemove.images);
       }
 
-      logger.debug("Sending recipe images to recipe API", {
-        imageCount: files.length,
-      });
-      const res = await fetch("/api/recipes", {
-        method: "POST",
-        body: form,
-      });
-      const data = (await res.json()) as RecipeApiResponse;
-      logger.debug("Recipe API response received", { status: res.status });
+      return currentGroups.filter((group) => group.id !== groupId);
+    });
+  }
 
-      if (!res.ok) throw new Error(data?.error ?? "Request failed");
-      setResult(toRecipeResult(data.id, data.recipe));
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (e: any) {
-      setError(e?.message ?? "Unknown error");
-    } finally {
+  function addGroup() {
+    if (groups.length >= MAX_UPLOAD_RECIPE_GROUPS) {
+      return;
     }
+
+    setGroups((currentGroups) => [
+      ...currentGroups,
+      ...createInitialUploadGroups(),
+    ]);
   }
 
   async function uploadToS3() {
     setError(null);
     setS3UploadSuccess(null);
-    setResult(null);
 
-    if (files.length === 0) {
-      setError("Pick at least one image first.");
+    if (filledGroups.length === 0) {
+      setError("Add at least one recipe photo group first.");
       setTimeout(() => setError(null), 3000);
-      return;
-    }
-
-    // Check all file sizes before upload
-    const oversizedFiles = files.filter((f) => f.size > 1024 * 1024);
-    if (oversizedFiles.length > 0) {
-      setError(
-        `The following image${oversizedFiles.length > 1 ? "s are" : " is"} too large (max 1024 KB):\n` +
-          oversizedFiles.map((f) => `- ${f.name}`).join("\n"),
-      );
-      setTimeout(() => setError(null), 5000);
       return;
     }
 
     setUploadedToS3(true);
 
     try {
-      const form = new FormData();
-
-      for (const file of files) {
-        form.append("images", file);
-      }
+      const uploadRequest = buildUploadFormData(groups);
 
       logger.debug("Uploading recipe images to S3", {
-        imageCount: files.length,
+        groupCount: uploadRequest.groupCount,
+        imageCount: uploadRequest.imageCount,
       });
-      const res = await fetch("/api/upload", {
+
+      const response = await fetch("/api/upload", {
         method: "POST",
-        body: form,
+        body: uploadRequest.formData,
       });
-      const data = (await res.json()) as UploadApiResponse;
+      const data = (await response.json()) as UploadApiResponse;
+
       logger.debug("S3 upload response received", {
-        status: res.status,
-        imageCount: files.length,
+        status: response.status,
+        groupCount: uploadRequest.groupCount,
+        imageCount: uploadRequest.imageCount,
       });
 
-      if (!res.ok) throw new Error(data?.error ?? "Upload failed");
-
-      const processingError = getUploadProcessingError(data);
-
-      if (processingError) {
-        setError(processingError);
-        return;
+      if (!response.ok) {
+        throw new Error(data.error ?? "Upload failed");
       }
-
-      const processedRecipe = getRecipeFromUploadResponse(data);
-
-      if (!processedRecipe) {
-        setError("Automatic processing failed after upload");
-        return;
-      }
-
-      setResult(processedRecipe);
 
       setS3UploadSuccess(
-        data?.message ??
-          `Uploaded ${files.length} image${files.length === 1 ? "" : "s"} and processed the recipe successfully`,
+        `${getUploadSuccessMessage(data)}. Use Batch Process to extract recipes when ready.`,
       );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } catch (e: any) {
-      setError(e?.message ?? "Unknown error");
+      resetGroups();
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error ? uploadError.message : "Unknown error",
+      );
     } finally {
       setTimeout(() => {
         setUploadedToS3(false);
@@ -157,108 +203,162 @@ export default function ParsePage() {
           <div className={styles.popup}>
             <div className={styles.popupIcon}>✓</div>
             <h2 className={styles.popupTitle}>Upload complete</h2>
-            <p className={styles.popupMessage}>Your recipe is ready below.</p>
+            <p className={styles.popupMessage}>
+              Your recipe photo groups are stored in S3 and ready for batch
+              extraction.
+            </p>
             <p className={styles.popupUrl}>{s3UploadSuccess}</p>
           </div>
         </div>
       )}
+
       <div className={recipeStyles.headerContainer}>
-        <div>
+        <div className={styles.pageIntro}>
+          <p className={styles.eyebrow}>Recipe Intake</p>
           <h1 className={recipeStyles.pageTitle}>Uploader</h1>
           <p className={recipeStyles.pageSubtitle}>
-            Upload one or more photos for the same recipe so they can be
-            processed together.
+            Queue up to {MAX_UPLOAD_RECIPE_GROUPS} recipe groups in one upload.
+            Each group can contain one or more photos that will stay together
+            for batch extraction.
           </p>
         </div>
       </div>
 
-      <form onSubmit={onSubmit} className={recipeStyles.form}>
-        <label className={styles.fileInputLabel}>
-          <span className={styles.fileInputLabelText}>Select Images</span>
-          <div className={styles.fileInputDropZone}>
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              onChange={(e) => {
-                const selectedFiles = Array.from(e.target.files || []);
-                // Check for oversized files immediately
-                const oversizedFiles = selectedFiles.filter(
-                  (f) => f.size > 1024 * 1024,
-                );
-                if (oversizedFiles.length > 0) {
-                  setError(
-                    `The following image${oversizedFiles.length > 1 ? "s are" : " is"} too large (max 1024 KB):\n` +
-                      oversizedFiles.map((f) => `- ${f.name}`).join("\n"),
-                  );
-                  setTimeout(() => setError(null), 5000);
-                  setFiles([]);
-                  setPreviews([]);
-                  return;
-                }
-                setFiles(selectedFiles);
-                setS3UploadSuccess(null);
-
-                // Create previews for all files
-                if (selectedFiles.length > 0) {
-                  const previewPromises = selectedFiles.map((selectedFile) => {
-                    return new Promise<string>((resolve) => {
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        resolve(reader.result as string);
-                      };
-                      reader.readAsDataURL(selectedFile);
-                    });
-                  });
-
-                  Promise.all(previewPromises).then((results) => {
-                    setPreviews(results);
-                  });
-                } else {
-                  setPreviews([]);
-                }
-              }}
-              className={styles.fileInputHidden}
-            />
-            <div className={styles.fileInputContent}>
-              <div className={styles.fileInputIcon}>📁</div>
-              <div className={styles.fileInputMainText}>
-                {files.length > 0
-                  ? `${files.length} file${files.length > 1 ? "s" : ""} selected`
-                  : "Click to browse or drag and drop"}
-              </div>
-              <div className={styles.fileInputSubText}>
-                PNG, JPG, JPEG up to 10MB
-              </div>
-            </div>
+      <form className={recipeStyles.form}>
+        <div className={styles.summaryStrip}>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>Recipe groups</span>
+            <strong className={styles.summaryValue}>
+              {filledGroups.length}/{MAX_UPLOAD_RECIPE_GROUPS}
+            </strong>
           </div>
-        </label>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>Images queued</span>
+            <strong className={styles.summaryValue}>{totalImageCount}</strong>
+          </div>
+          <div className={styles.summaryCard}>
+            <span className={styles.summaryLabel}>Batch-ready grouping</span>
+            <strong className={styles.summaryValue}>One recipe per card</strong>
+          </div>
+        </div>
 
-        {previews.length > 0 && (
-          <div className={recipeStyles.previewBox}>
-            <p className={recipeStyles.previewLabel}>
-              Preview ({previews.length} image{previews.length > 1 ? "s" : ""})
-            </p>
-            <div className={styles.previewGrid}>
-              {previews.map((previewUrl, idx) => (
-                <div key={idx} className={styles.previewImageWrapper}>
-                  <Image
-                    src={previewUrl}
-                    alt={`Preview ${idx + 1}`}
-                    width={200}
-                    height={150}
-                    className={styles.previewImage}
-                  />
-                  <div className={styles.previewImageLabel}>
-                    {files[idx]?.name}
+        <div className={styles.groupList}>
+          {groups.map((group, groupIndex) => {
+            const inputId = `${uploadGroupInputIdPrefix}-upload-group-${groupIndex}`;
+
+            return (
+              <section key={group.id} className={styles.groupCard}>
+                <div className={styles.groupHeader}>
+                  <div>
+                    <p className={styles.groupEyebrow}>Recipe Group</p>
+                    <h2 className={styles.groupTitle}>
+                      Recipe {groupIndex + 1}
+                    </h2>
+                    <p className={styles.groupMeta}>
+                      {group.images.length} image
+                      {group.images.length === 1 ? "" : "s"} selected
+                    </p>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => removeGroup(group.id)}
+                    className={styles.secondaryAction}
+                    disabled={uploadedToS3}
+                  >
+                    {groups.length === 1 ? "Clear" : "Remove Group"}
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
-        )}
+
+                <label htmlFor={inputId} className={styles.fileInputLabel}>
+                  <span className={styles.fileInputLabelText}>
+                    Add Recipe Photos
+                  </span>
+                  <div className={styles.fileInputDropZone}>
+                    <input
+                      id={inputId}
+                      type="file"
+                      accept="image/*"
+                      multiple
+                      onChange={(event) => {
+                        const selectedFiles = Array.from(
+                          event.target.files || [],
+                        );
+
+                        appendFilesToGroup(group.id, selectedFiles);
+                        event.currentTarget.value = "";
+                      }}
+                      className={styles.fileInputHidden}
+                    />
+                    <div className={styles.fileInputContent}>
+                      <div className={styles.fileInputIcon}>📷</div>
+                      <div className={styles.fileInputMainText}>
+                        {group.images.length > 0
+                          ? "Add more images to this recipe group"
+                          : "Click to add one or more photos for this recipe"}
+                      </div>
+                      <div className={styles.fileInputSubText}>
+                        PNG, JPG, JPEG, GIF, or WEBP up to 1024 KB each
+                      </div>
+                    </div>
+                  </div>
+                </label>
+
+                {group.images.length > 0 ? (
+                  <div className={recipeStyles.previewBox}>
+                    <p className={recipeStyles.previewLabel}>
+                      Preview ({group.images.length} image
+                      {group.images.length === 1 ? "" : "s"})
+                    </p>
+                    <div className={styles.previewGrid}>
+                      {group.images.map((image, imageIndex) => (
+                        <div
+                          key={image.id}
+                          className={styles.previewImageWrapper}
+                        >
+                          <Image
+                            src={image.previewUrl}
+                            alt={`Recipe ${groupIndex + 1} preview ${imageIndex + 1}`}
+                            width={200}
+                            height={150}
+                            className={styles.previewImage}
+                          />
+                          <div className={styles.previewImageLabel}>
+                            {image.file.name}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeImage(group.id, image.id)}
+                            className={styles.previewRemoveButton}
+                            aria-label={`Remove ${image.file.name}`}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className={styles.emptyGroupState}>
+                    Add every photo needed to parse this recipe. The batch
+                    processor will treat this card as one recipe group.
+                  </div>
+                )}
+              </section>
+            );
+          })}
+        </div>
 
         <div className={styles.buttonContainer}>
+          <button
+            type="button"
+            onClick={addGroup}
+            disabled={uploadedToS3 || groups.length >= MAX_UPLOAD_RECIPE_GROUPS}
+            className={styles.secondaryButton}
+          >
+            Add Another Recipe Group
+          </button>
+
           <button
             type="button"
             disabled={uploadedToS3}
@@ -268,121 +368,13 @@ export default function ParsePage() {
             }`}
           >
             {uploadedToS3
-              ? `Uploading ${files.length} image${files.length === 1 ? "" : "s"}...`
-              : `Upload ${files.length > 0 ? files.length : ""}`}
+              ? `Uploading ${filledGroups.length} recipe group${filledGroups.length === 1 ? "" : "s"}...`
+              : `Upload ${filledGroups.length > 0 ? filledGroups.length : ""} Recipe Group${filledGroups.length === 1 ? "" : "s"}`}
           </button>
         </div>
       </form>
 
       {error && <p className={recipeStyles.error}>{error}</p>}
-
-      {result && (
-        <div className={recipeStyles.recipeContainer}>
-          <h2>{result.title}</h2>
-
-          {result.description && (
-            <p className={recipeStyles.description}>{result.description}</p>
-          )}
-
-          <div className={recipeStyles.metricsGrid}>
-            {result.servings && (
-              <div className={recipeStyles.metricCard}>
-                <p className={recipeStyles.metricLabel}>SERVINGS</p>
-                <p className={recipeStyles.metricValue}>{result.servings}</p>
-              </div>
-            )}
-            {result.prepTimeMinutes && (
-              <div className={recipeStyles.metricCard}>
-                <p className={recipeStyles.metricLabel}>PREP TIME</p>
-                <p className={recipeStyles.metricValue}>
-                  {result.prepTimeMinutes} min
-                </p>
-              </div>
-            )}
-            {result.cookTimeMinutes && (
-              <div className={recipeStyles.metricCard}>
-                <p className={recipeStyles.metricLabel}>COOK TIME</p>
-                <p className={recipeStyles.metricValue}>
-                  {result.cookTimeMinutes} min
-                </p>
-              </div>
-            )}
-            {result.totalTimeMinutes && (
-              <div className={recipeStyles.metricCard}>
-                <p className={recipeStyles.metricLabel}>TOTAL TIME</p>
-                <p className={recipeStyles.metricValue}>
-                  {result.totalTimeMinutes} min
-                </p>
-              </div>
-            )}
-          </div>
-
-          {(result.tags || result.allergens) && (
-            <div className={recipeStyles.tagsAllergenSection}>
-              {result.tags && result.tags.length > 0 && (
-                <div className={recipeStyles.allergenDivider}>
-                  <p className={recipeStyles.sectionLabel}>TAGS</p>
-                  <div className={recipeStyles.tagContainer}>
-                    {result.tags.map((tag) => (
-                      <span key={tag} className={recipeStyles.tag}>
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {result.allergens && result.allergens.length > 0 && (
-                <div>
-                  <p className={recipeStyles.sectionLabel}>ALLERGENS</p>
-                  <div className={recipeStyles.tagContainer}>
-                    {result.allergens.map((allergen) => (
-                      <span key={allergen} className={recipeStyles.allergen}>
-                        {allergen}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className={recipeStyles.contentGrid}>
-            <div>
-              <h3 className={recipeStyles.sectionTitle}>Ingredients</h3>
-              <ul className={recipeStyles.ingredientList}>
-                {result.ingredients.map((ingredient, idx) => (
-                  <li key={idx} className={recipeStyles.ingredientItem}>
-                    <span className={recipeStyles.ingredientName}>
-                      {ingredient.name}
-                    </span>
-                    {ingredient.quantity && (
-                      <span className={recipeStyles.ingredientQuantity}>
-                        {ingredient.quantity} {ingredient.unit || ""}
-                      </span>
-                    )}
-                    {ingredient.notes && (
-                      <p className={recipeStyles.ingredientNotes}>
-                        {ingredient.notes}
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h3 className={recipeStyles.sectionTitle}>Instructions</h3>
-              <ol className={recipeStyles.stepsList}>
-                {result.steps.map((step, idx) => (
-                  <li key={idx} className={recipeStyles.stepItem}>
-                    {step}
-                  </li>
-                ))}
-              </ol>
-            </div>
-          </div>
-        </div>
-      )}
     </main>
   );
 }

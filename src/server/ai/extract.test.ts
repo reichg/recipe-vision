@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
+  generateStructuredRecipeBatchJsonText: vi.fn(),
   generateStructuredRecipeJsonText: vi.fn(),
   logger: {
     debug: vi.fn(),
@@ -15,10 +16,12 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 vi.mock("./llm", () => ({
+  generateStructuredRecipeBatchJsonText:
+    mocks.generateStructuredRecipeBatchJsonText,
   generateStructuredRecipeJsonText: mocks.generateStructuredRecipeJsonText,
 }));
 
-import { recipeFromOcrText } from "./extract";
+import { recipeFromOcrText, recipesFromOcrTextGroups } from "./extract";
 
 describe("recipeFromOcrText", () => {
   afterEach(() => {
@@ -68,5 +71,134 @@ describe("recipeFromOcrText", () => {
     });
 
     expect(mocks.generateStructuredRecipeJsonText).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps a batched provider response back to the original recipe identifiers", async () => {
+    mocks.generateStructuredRecipeBatchJsonText.mockResolvedValue(
+      JSON.stringify({
+        recipes: [
+          {
+            recipeId: "recipe-1",
+            recipe: {
+              title: "Tomato Soup",
+              ingredients: [{ name: "Tomatoes" }],
+              steps: ["Simmer the tomatoes."],
+            },
+          },
+          {
+            recipeId: "recipe-2",
+            recipe: {
+              title: "Grilled Cheese",
+              ingredients: [{ name: "Bread" }],
+              steps: ["Toast the sandwich."],
+            },
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      recipesFromOcrTextGroups([
+        {
+          recipeId: "recipe-1",
+          ocrSegments: [
+            "Title: Tomato Soup\nIngredients: Tomatoes",
+            "Steps: Simmer the tomatoes.",
+          ],
+        },
+        {
+          recipeId: "recipe-2",
+          ocrSegments: [
+            "Title: Grilled Cheese\nIngredients: Bread",
+            "Steps: Toast the sandwich.",
+          ],
+        },
+      ]),
+    ).resolves.toEqual([
+      {
+        recipeId: "recipe-1",
+        recipe: {
+          title: "Tomato Soup",
+          ingredients: [{ name: "Tomatoes" }],
+          steps: ["Simmer the tomatoes."],
+          sourceText:
+            "Recipe photo 1:\nTitle: Tomato Soup\nIngredients: Tomatoes\n\nRecipe photo 2:\nSteps: Simmer the tomatoes.",
+        },
+      },
+      {
+        recipeId: "recipe-2",
+        recipe: {
+          title: "Grilled Cheese",
+          ingredients: [{ name: "Bread" }],
+          steps: ["Toast the sandwich."],
+          sourceText:
+            "Recipe photo 1:\nTitle: Grilled Cheese\nIngredients: Bread\n\nRecipe photo 2:\nSteps: Toast the sandwich.",
+        },
+      },
+    ]);
+
+    const request =
+      mocks.generateStructuredRecipeBatchJsonText.mock.calls[0]?.[0];
+
+    expect(request?.instructionText).toContain(
+      'Return exactly one item in "recipes" for each recipe identifier',
+    );
+    expect(request?.recipeInputs).toEqual([
+      {
+        recipeId: "recipe-1",
+        ocrSegments: [
+          "Title: Tomato Soup\nIngredients: Tomatoes",
+          "Steps: Simmer the tomatoes.",
+        ],
+      },
+      {
+        recipeId: "recipe-2",
+        ocrSegments: [
+          "Title: Grilled Cheese\nIngredients: Bread",
+          "Steps: Toast the sandwich.",
+        ],
+      },
+    ]);
+  });
+
+  it("rejects a batched provider response with duplicate recipe identifiers", async () => {
+    mocks.generateStructuredRecipeBatchJsonText.mockResolvedValue(
+      JSON.stringify({
+        recipes: [
+          {
+            recipeId: "recipe-1",
+            recipe: {
+              title: "Tomato Soup",
+              ingredients: [{ name: "Tomatoes" }],
+              steps: ["Simmer the tomatoes."],
+            },
+          },
+          {
+            recipeId: "recipe-1",
+            recipe: {
+              title: "Grilled Cheese",
+              ingredients: [{ name: "Bread" }],
+              steps: ["Toast the sandwich."],
+            },
+          },
+        ],
+      }),
+    );
+
+    await expect(
+      recipesFromOcrTextGroups([
+        {
+          recipeId: "recipe-1",
+          ocrSegments: ["Title: Tomato Soup"],
+        },
+        {
+          recipeId: "recipe-2",
+          ocrSegments: ["Title: Grilled Cheese"],
+        },
+      ]),
+    ).rejects.toMatchObject({
+      code: "LLM_INVALID_RESPONSE",
+      statusCode: 502,
+    });
   });
 });

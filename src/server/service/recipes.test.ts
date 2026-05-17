@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   prismaFindUnique: vi.fn(),
   ocrSpaceExtractText: vi.fn(),
   prismaCreate: vi.fn(),
+  recipesFromOcrTextGroups: vi.fn(),
   recipeFromOcrText: vi.fn(),
 }));
 
@@ -21,6 +22,7 @@ vi.mock("@/lib/logger", () => ({
 }));
 
 vi.mock("@/server/ai/extract", () => ({
+  recipesFromOcrTextGroups: mocks.recipesFromOcrTextGroups,
   recipeFromOcrText: mocks.recipeFromOcrText,
 }));
 
@@ -41,7 +43,10 @@ vi.mock("./s3-validation", () => ({
   assertValidImageFiles: mocks.assertValidImageFiles,
 }));
 
-import { createRecipeFromImages } from "./recipes";
+import {
+  createRecipeFromImages,
+  extractRecipesFromOcrSegmentGroups,
+} from "./recipes";
 
 describe("createRecipeFromImages", () => {
   afterEach(() => {
@@ -189,5 +194,58 @@ describe("createRecipeFromImages", () => {
 
     expect(mocks.recipeFromOcrText).not.toHaveBeenCalled();
     expect(mocks.prismaCreate).not.toHaveBeenCalled();
+  });
+
+  it("maps batched OCR groups back to their source image group keys", async () => {
+    const firstRecipe = {
+      title: "Tomato Soup",
+      ingredients: [{ name: "Tomatoes" }],
+      steps: ["Simmer the tomatoes."],
+      sourceText: "combined text 1",
+    };
+    const secondRecipe = {
+      title: "Grilled Cheese",
+      ingredients: [{ name: "Bread" }],
+      steps: ["Toast the sandwich."],
+      sourceText: "combined text 2",
+    };
+
+    mocks.recipesFromOcrTextGroups.mockResolvedValue([
+      { recipeId: "recipe-1", recipe: firstRecipe },
+      { recipeId: "recipe-2", recipe: secondRecipe },
+    ]);
+
+    await expect(
+      extractRecipesFromOcrSegmentGroups([
+        {
+          sourceImageGroupKey: "images/un-processed/group-1/",
+          ocrSegments: ["Title: Tomato Soup"],
+        },
+        {
+          sourceImageGroupKey: "images/un-processed/group-2/",
+          ocrSegments: ["Title: Grilled Cheese"],
+        },
+      ]),
+    ).resolves.toEqual([
+      {
+        sourceImageGroupKey: "images/un-processed/group-1/",
+        recipe: firstRecipe,
+      },
+      {
+        sourceImageGroupKey: "images/un-processed/group-2/",
+        recipe: secondRecipe,
+      },
+    ]);
+
+    expect(mocks.recipesFromOcrTextGroups).toHaveBeenCalledWith([
+      {
+        recipeId: "recipe-1",
+        ocrSegments: ["Title: Tomato Soup"],
+      },
+      {
+        recipeId: "recipe-2",
+        ocrSegments: ["Title: Grilled Cheese"],
+      },
+    ]);
   });
 });
