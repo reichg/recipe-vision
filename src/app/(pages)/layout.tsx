@@ -14,8 +14,8 @@ const bodyFont = Space_Grotesk({
 });
 
 export const metadata = {
-  title: "Recipe OCR",
-  description: "OCR an image and extract a structured recipe",
+  title: "Recipe Vision Parser",
+  description: "Turn recipe photos into a searchable cooking archive.",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

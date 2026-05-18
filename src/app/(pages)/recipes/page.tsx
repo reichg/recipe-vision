@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type ChangeEvent } from "react";
 import type { Recipe } from "../../models/recipe";
+import shellStyles from "../page-shell.module.css";
 import styles from "./recipe.module.css";
 
 type RecipeRecord = {
@@ -278,12 +279,12 @@ export default function RecipesPage() {
   }, [currentPage, activeQuery]);
 
   return (
-    <main className={styles.main}>
-      <section className={styles.pageHero}>
-        <div className={styles.headerCentered}>
-          <p className={styles.pageEyebrow}>Recipe Library</p>
-          <h1 className={styles.pageTitle}>Saved Recipes</h1>
-          <p className={styles.pageSubtitle}>
+    <main className={shellStyles.main}>
+      <section className={shellStyles.pageHero}>
+        <div className={shellStyles.headerCentered}>
+          <p className={shellStyles.pageEyebrow}>Recipe Library</p>
+          <h1 className={shellStyles.pageTitle}>Saved Recipes</h1>
+          <p className={shellStyles.pageSubtitle}>
             Browse parsed recipes, review what is ready for cooking, and manage
             the batches you want to keep.
           </p>

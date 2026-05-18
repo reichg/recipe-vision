@@ -2,9 +2,9 @@ import Link from "next/link";
 import styles from "./page.module.css";
 
 const proofPoints = [
-  { label: "Group-aware intake", value: "Multi-photo" },
-  { label: "AI extraction", value: "OCR + Gemini" },
-  { label: "Recipe library", value: "Search-ready" },
+  { label: "Grouped intake", value: "Multi-photo" },
+  { label: "Structured extraction", value: "OCR + Gemini" },
+  { label: "Working archive", value: "Search + review" },
 ];
 
 const featureCards = [
@@ -113,8 +113,8 @@ export default function HomePage() {
               <Link href="/batch-process" className={styles.utilityLink}>
                 Run Batch Extraction
               </Link>
-              <Link href="/health" className={styles.utilityLink}>
-                Check System Health
+              <Link href="/view-image" className={styles.utilityLink}>
+                Inspect Source Images
               </Link>
             </div>
           </div>
