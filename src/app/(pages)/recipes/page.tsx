@@ -1,8 +1,7 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import type { Recipe } from "../../models/recipe";
 import styles from "./recipe.module.css";
 
@@ -17,6 +16,17 @@ type RecipesResponse = {
   error?: string;
 };
 
+const RECIPES_PER_PAGE = 25;
+
+type RealtimeSearchState = {
+  nextPage: number;
+  nextQuery: string;
+};
+
+type RecipesRequestTransition = RealtimeSearchState & {
+  shouldLoad: boolean;
+};
+
 function mapRecipeRecord(record: RecipeRecord): Recipe {
   return {
     id: record.id,
@@ -24,8 +34,63 @@ function mapRecipeRecord(record: RecipeRecord): Recipe {
   };
 }
 
-async function fetchRecipesPage(page: number) {
-  const response = await fetch(`/api/recipes?page=${page}&limit=25`);
+export function buildRecipesRequestUrl(page: number, query: string) {
+  const normalizedQuery = normalizeRecipeSearchInput(query);
+  const searchParams = new URLSearchParams({
+    page: String(page),
+    limit: String(RECIPES_PER_PAGE),
+  });
+
+  if (normalizedQuery) {
+    searchParams.set("query", normalizedQuery);
+  }
+
+  return `/api/recipes?${searchParams.toString()}`;
+}
+
+export function normalizeRecipeSearchInput(searchInput: string) {
+  return searchInput.trim().replace(/\s+/g, " ");
+}
+
+export function getRealtimeSearchState(
+  searchInput: string,
+): RealtimeSearchState {
+  const nextQuery = normalizeRecipeSearchInput(searchInput);
+
+  return {
+    nextPage: 1,
+    nextQuery,
+  };
+}
+
+export function getRecipesRequestTransition(
+  currentPage: number,
+  currentQuery: string,
+  nextPage: number,
+  nextQuery: string,
+): RecipesRequestTransition {
+  const normalizedCurrentQuery = normalizeRecipeSearchInput(currentQuery);
+  const normalizedNextQuery = normalizeRecipeSearchInput(nextQuery);
+
+  return {
+    nextPage,
+    nextQuery: normalizedNextQuery,
+    shouldLoad:
+      currentPage !== nextPage ||
+      normalizedCurrentQuery !== normalizedNextQuery,
+  };
+}
+
+export function getNoRecipesMessage(query: string) {
+  if (!query) {
+    return "No recipes found.";
+  }
+
+  return `No recipes match "${query}". Try a different title or ingredient.`;
+}
+
+export async function fetchRecipesPage(page: number, query: string) {
+  const response = await fetch(buildRecipesRequestUrl(page, query));
   const data = (await response.json()) as RecipesResponse;
 
   if (!response.ok) {
@@ -53,10 +118,13 @@ export default function RecipesPage() {
   const [error, setError] = useState<string | null>(null);
   const [pagination, setPagination] = useState<PaginationInfo | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchInput, setSearchInput] = useState("");
   const [selectedRecipes, setSelectedRecipes] = useState<Set<string>>(
     new Set(),
   );
   const [deleting, setDeleting] = useState(false);
+  const { nextQuery: activeQuery } = getRealtimeSearchState(searchInput);
+  const hasActiveQuery = activeQuery.length > 0;
 
   const rangeStart =
     pagination && recipes.length > 0
@@ -92,7 +160,7 @@ export default function RecipesPage() {
       // Refresh the recipes list
       setSelectedRecipes(new Set());
       setLoading(true);
-      const refreshedRecipes = await fetchRecipesPage(currentPage);
+      const refreshedRecipes = await fetchRecipesPage(currentPage, activeQuery);
 
       setRecipes(refreshedRecipes.recipes);
       setPagination(refreshedRecipes.pagination);
@@ -125,12 +193,73 @@ export default function RecipesPage() {
     }
   };
 
+  const navigateToPage = (nextPage: number) => {
+    const transition = getRecipesRequestTransition(
+      currentPage,
+      activeQuery,
+      nextPage,
+      activeQuery,
+    );
+
+    if (!transition.shouldLoad) {
+      return;
+    }
+
+    setLoading(true);
+    setCurrentPage(transition.nextPage);
+  };
+
+  const handleSearchInputChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const nextSearchInput = event.target.value;
+    const transition = getRecipesRequestTransition(
+      currentPage,
+      activeQuery,
+      1,
+      nextSearchInput,
+    );
+
+    setError(null);
+    setSelectedRecipes(new Set());
+    setSearchInput(nextSearchInput);
+
+    if (transition.shouldLoad) {
+      setLoading(true);
+    }
+
+    if (transition.nextPage !== currentPage) {
+      setCurrentPage(transition.nextPage);
+    }
+  };
+
+  const handleClearSearch = () => {
+    if (searchInput.length === 0) {
+      return;
+    }
+
+    const transition = getRecipesRequestTransition(
+      currentPage,
+      activeQuery,
+      1,
+      "",
+    );
+
+    setError(null);
+    setSelectedRecipes(new Set());
+    setSearchInput("");
+
+    if (transition.shouldLoad) {
+      setLoading(true);
+    }
+
+    if (transition.nextPage !== currentPage) {
+      setCurrentPage(transition.nextPage);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
 
-    setLoading(true);
-
-    fetchRecipesPage(currentPage)
+    fetchRecipesPage(currentPage, activeQuery)
       .then((data) => {
         if (cancelled) return;
         setRecipes(data.recipes);
@@ -146,7 +275,7 @@ export default function RecipesPage() {
     return () => {
       cancelled = true;
     };
-  }, [currentPage]);
+  }, [currentPage, activeQuery]);
 
   return (
     <main className={styles.main}>
@@ -180,7 +309,39 @@ export default function RecipesPage() {
         </div>
       </section>
 
-      {loading && <p className={styles.centerText}>Loading...</p>}
+      <section className={styles.searchPanel} aria-label="Recipe filters">
+        <div className={styles.searchForm}>
+          <div className={styles.searchFieldCopy}>
+            <label htmlFor="recipe-search" className={styles.searchLabel}>
+              Search recipes
+            </label>
+            <p id="recipe-search-help" className={styles.searchHelpText}>
+              Search by title or ingredient. Results update as you type.
+            </p>
+          </div>
+
+          <div className={styles.searchInputRow}>
+            <input
+              id="recipe-search"
+              type="search"
+              value={searchInput}
+              onChange={handleSearchInputChange}
+              placeholder="Try tomato, garlic, or pasta"
+              aria-describedby="recipe-search-help"
+              className={styles.searchInput}
+            />
+            {(hasActiveQuery || searchInput.length > 0) && (
+              <button
+                type="button"
+                onClick={handleClearSearch}
+                className={styles.paginationPageButton}
+              >
+                Clear
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
       {error && (
         <p className={`${styles.errorMessage} ${styles.centerText}`}>{error}</p>
       )}
@@ -190,10 +351,18 @@ export default function RecipesPage() {
           <div className={styles.toolbarSummary}>
             {pagination ? (
               <>
-                Showing {rangeStart}-{rangeEnd} of {pagination.total}
+                Showing {rangeStart}-{rangeEnd} of {pagination.total}{" "}
+                {hasActiveQuery
+                  ? `match${pagination.total === 1 ? "" : "es"}`
+                  : "recipes"}
               </>
             ) : (
-              <>Showing {recipes.length} recipes</>
+              <>
+                Showing {recipes.length}{" "}
+                {hasActiveQuery
+                  ? `match${recipes.length === 1 ? "" : "es"}`
+                  : "recipes"}
+              </>
             )}
           </div>
           <div className={styles.toolbarActions}>
@@ -227,14 +396,17 @@ export default function RecipesPage() {
 
       {pagination && (
         <div className={styles.paginationInfoText}>
-          Showing {recipes.length} of {pagination.total} recipes (Page{" "}
-          {pagination.page} of {pagination.totalPages})
+          Showing {recipes.length} of {pagination.total}{" "}
+          {hasActiveQuery ? "matches" : "recipes"} (Page {pagination.page} of{" "}
+          {pagination.totalPages})
         </div>
       )}
 
       <div className={styles.compactRecipesGrid}>
         {recipes.length === 0 && !loading && (
-          <p className={styles.noRecipesMessage}>No recipes found.</p>
+          <p className={styles.noRecipesMessage}>
+            {getNoRecipesMessage(activeQuery)}
+          </p>
         )}
 
         {recipes.map((recipe, index) => {
@@ -353,10 +525,7 @@ export default function RecipesPage() {
       {pagination && pagination.totalPages > 1 && (
         <div className={styles.paginationContainer}>
           <button
-            onClick={() => {
-              setLoading(true);
-              setCurrentPage((p) => Math.max(1, p - 1));
-            }}
+            onClick={() => navigateToPage(Math.max(1, currentPage - 1))}
             disabled={!pagination.hasPrev || loading}
             className={`${styles.paginationButton} ${
               !pagination.hasPrev || loading
@@ -372,10 +541,7 @@ export default function RecipesPage() {
             {currentPage > 3 && (
               <>
                 <button
-                  onClick={() => {
-                    setLoading(true);
-                    setCurrentPage(1);
-                  }}
+                  onClick={() => navigateToPage(1)}
                   className={styles.paginationPageButton}
                 >
                   1
@@ -398,10 +564,7 @@ export default function RecipesPage() {
               .map((pageNum) => (
                 <button
                   key={pageNum}
-                  onClick={() => {
-                    setLoading(true);
-                    setCurrentPage(pageNum);
-                  }}
+                  onClick={() => navigateToPage(pageNum)}
                   disabled={loading}
                   className={`${
                     pageNum === currentPage
@@ -418,10 +581,7 @@ export default function RecipesPage() {
               <>
                 {currentPage < pagination.totalPages - 3 && <span>...</span>}
                 <button
-                  onClick={() => {
-                    setLoading(true);
-                    setCurrentPage(pagination.totalPages);
-                  }}
+                  onClick={() => navigateToPage(pagination.totalPages)}
                   className={styles.paginationPageButton}
                 >
                   {pagination.totalPages}
@@ -431,10 +591,9 @@ export default function RecipesPage() {
           </div>
 
           <button
-            onClick={() => {
-              setLoading(true);
-              setCurrentPage((p) => Math.min(pagination.totalPages, p + 1));
-            }}
+            onClick={() =>
+              navigateToPage(Math.min(pagination.totalPages, currentPage + 1))
+            }
             disabled={!pagination.hasNext || loading}
             className={`${styles.paginationButton} ${
               !pagination.hasNext || loading

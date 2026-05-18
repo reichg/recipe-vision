@@ -142,6 +142,68 @@
   font-weight: 700;
 }
 
+.searchPanel {
+  margin-bottom: 1rem;
+  border: 1px solid var(--border-soft);
+  border-radius: 1.5rem;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.74),
+    rgba(247, 239, 230, 0.68)
+  );
+  box-shadow: var(--shadow-soft);
+  backdrop-filter: blur(12px);
+  padding: 1rem 1.1rem;
+}
+
+.searchForm {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.searchFieldCopy {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.searchLabel {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.searchHelpText {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+}
+
+.searchInputRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.searchInput {
+  flex: 1 1 18rem;
+  min-width: min(100%, 18rem);
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  color: var(--text-primary);
+  font: inherit;
+  padding: 0.82rem 1rem;
+}
+
+.searchInput::placeholder {
+  color: var(--text-muted);
+}
+
+.searchInput:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
 .description {
   margin-bottom: 1.6rem;
   color: var(--text-secondary);
@@ -570,6 +632,7 @@
 @media (max-width: 720px) {
   .pageHero,
   .headerContainer,
+  .searchPanel,
   .selectionControlsContainer {
     padding: 1rem;
   }
@@ -588,6 +651,10 @@
 
   .toolbarActions,
   .navButtons {
+    width: 100%;
+  }
+
+  .searchInputRow {
     width: 100%;
   }
 
@@ -618,9 +685,11 @@
     padding: 0.95rem;
   }
 
+  .searchInput,
   .selectAllLabel,
   .deleteButton,
   .navButton,
+  .paginationPageButton,
   .paginationButton {
     width: 100%;
   }

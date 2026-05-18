@@ -10,7 +10,10 @@ const mocks = vi.hoisted(() => ({
     info: vi.fn(),
     warn: vi.fn(),
   },
+  prismaCount: vi.fn(),
   prismaFindUnique: vi.fn(),
+  prismaFindMany: vi.fn(),
+  prismaQueryRaw: vi.fn(),
   ocrSpaceExtractText: vi.fn(),
   prismaCreate: vi.fn(),
   recipesFromOcrTextGroups: vi.fn(),
@@ -32,8 +35,11 @@ vi.mock("@/server/ai/ocr", () => ({
 
 vi.mock("@/server/db/prisma", () => ({
   prisma: {
+    $queryRaw: mocks.prismaQueryRaw,
     recipe: {
+      count: mocks.prismaCount,
       create: mocks.prismaCreate,
+      findMany: mocks.prismaFindMany,
       findUnique: mocks.prismaFindUnique,
     },
   },
@@ -46,7 +52,90 @@ vi.mock("./s3-validation", () => ({
 import {
   createRecipeFromImages,
   extractRecipesFromOcrSegmentGroups,
+  listRecipes,
 } from "./recipes";
+
+describe("listRecipes", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("returns paginated recipes without search via Prisma findMany/count", async () => {
+    const recipes = [
+      {
+        id: "recipe_1",
+        title: "Tomato Soup",
+        createdAt: new Date("2026-05-01T12:00:00.000Z"),
+        json: {
+          title: "Tomato Soup",
+          ingredients: [{ name: "Tomatoes" }],
+          steps: ["Simmer."],
+        },
+      },
+    ];
+
+    mocks.prismaFindMany.mockResolvedValue(recipes);
+    mocks.prismaCount.mockResolvedValue(3);
+
+    await expect(listRecipes({ page: 1, limit: 2 })).resolves.toEqual({
+      recipes,
+      pagination: {
+        page: 1,
+        limit: 2,
+        total: 3,
+        totalPages: 2,
+        hasNext: true,
+        hasPrev: false,
+      },
+    });
+
+    expect(mocks.prismaFindMany).toHaveBeenCalledWith({
+      orderBy: { createdAt: "desc" },
+      skip: 0,
+      take: 2,
+      select: { id: true, title: true, createdAt: true, json: true },
+    });
+    expect(mocks.prismaCount).toHaveBeenCalledTimes(1);
+    expect(mocks.prismaQueryRaw).not.toHaveBeenCalled();
+  });
+
+  it("returns filtered pagination when searching title and ingredients", async () => {
+    const recipes = [
+      {
+        id: "recipe_2",
+        title: "Garlic Pasta",
+        createdAt: new Date("2026-05-02T12:00:00.000Z"),
+        json: {
+          title: "Garlic Pasta",
+          ingredients: [{ name: "Garlic" }],
+          steps: ["Boil."],
+        },
+      },
+    ];
+
+    mocks.prismaQueryRaw
+      .mockResolvedValueOnce(recipes)
+      .mockResolvedValueOnce([{ total: 1 }]);
+
+    await expect(
+      listRecipes({ page: 2, limit: 1, query: "garlic" }),
+    ).resolves.toEqual({
+      recipes,
+      pagination: {
+        page: 2,
+        limit: 1,
+        total: 1,
+        totalPages: 1,
+        hasNext: false,
+        hasPrev: true,
+      },
+    });
+
+    expect(mocks.prismaQueryRaw).toHaveBeenCalledTimes(2);
+    expect(mocks.prismaFindMany).not.toHaveBeenCalled();
+    expect(mocks.prismaCount).not.toHaveBeenCalled();
+  });
+});
 
 describe("createRecipeFromImages", () => {
   afterEach(() => {

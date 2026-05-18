@@ -8,8 +8,7 @@ import styles from "./Navbar.module.css";
 const navItems = [
   { href: "/", label: "Home" },
   { href: "/recipes", label: "Recipes" },
-  { href: "/batch-process", label: "Batch Process" },
-  { href: "/health", label: "Health" },
+  { href: "/batch-process", label: "Batch Process" }
 ];
 
 function isActivePath(pathname: string, href: string) {
