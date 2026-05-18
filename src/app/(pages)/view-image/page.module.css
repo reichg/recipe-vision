@@ -1,41 +1,35 @@
-.main {
-  min-height: calc(100vh - 96px);
-  padding: clamp(2rem, 5vw, 3rem) 1.25rem 3rem;
-}
-
 .container {
   max-width: var(--page-max-width);
   margin: 0 auto;
 }
 
 .header {
-  margin-bottom: 1.5rem;
-  text-align: center;
+  width: 100%;
+  max-width: 56rem;
+  display: grid;
+  gap: 0.45rem;
 }
 
-.title {
-  margin: 0 0 0.5rem;
-  color: var(--text-primary);
-  font-family: var(--font-playfair);
-  font-size: clamp(2.4rem, 6vw, 3.3rem);
+.eyebrow {
+  margin: 0;
+  color: var(--accent-secondary);
+  font-size: 0.72rem;
   font-weight: 700;
-}
-
-.subtitle {
-  max-width: 680px;
-  margin: 0 auto;
-  color: var(--text-secondary);
-  font-size: 1.05rem;
-  line-height: 1.7;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
 }
 
 .controlPanel,
 .imageCard,
 .placeholder {
   border: 1px solid var(--border-soft);
-  border-radius: 1.5rem;
-  background: var(--surface-base);
-  box-shadow: var(--shadow-soft);
+  border-radius: 1.8rem;
+  background: linear-gradient(
+    145deg,
+    rgba(14, 21, 28, 0.96),
+    rgba(8, 13, 19, 0.94)
+  );
+  box-shadow: var(--shadow-soft), var(--shadow-edge);
 }
 
 .controlPanel {
@@ -53,16 +47,16 @@
   color: var(--text-primary);
   font-size: 0.82rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
 .input {
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid var(--border-soft);
+  border: 1px solid rgba(113, 202, 215, 0.16);
   border-radius: 1rem;
-  background: rgba(255, 255, 255, 0.76);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   font-family: monospace;
   font-size: 1rem;
@@ -71,8 +65,8 @@
 }
 
 .input:focus {
-  border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px rgba(180, 91, 57, 0.12);
+  border-color: rgba(243, 164, 104, 0.32);
+  box-shadow: 0 0 0 3px rgba(201, 118, 61, 0.16);
 }
 
 .hint {
@@ -84,15 +78,15 @@
 
 .button {
   width: 100%;
-  border: none;
-  border-radius: 999px;
-  background: var(--accent-primary);
-  box-shadow: 0 16px 30px rgba(180, 91, 57, 0.22);
-  color: #fff9f4;
+  border: 1px solid rgba(243, 164, 104, 0.36);
+  border-radius: 1rem;
+  background: linear-gradient(135deg, var(--accent-primary), #e89e67);
+  box-shadow: 0 18px 34px rgba(201, 118, 61, 0.22);
+  color: #fff8ef;
   cursor: pointer;
   font-size: 1rem;
   font-weight: 700;
-  padding: 0.95rem 1.4rem;
+  padding: 0.98rem 1.4rem;
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease;
@@ -102,13 +96,13 @@
 .button:focus-visible:not(:disabled),
 .actionButton:hover,
 .actionButton:focus-visible {
-  box-shadow: 0 20px 34px rgba(180, 91, 57, 0.28);
+  box-shadow: 0 22px 36px rgba(201, 118, 61, 0.28);
   outline: none;
   transform: translateY(-2px);
 }
 
 .buttonDisabled {
-  background: #c7bbaf;
+  background: rgba(255, 255, 255, 0.12);
   box-shadow: none;
   cursor: not-allowed;
 }
@@ -130,10 +124,10 @@
   align-items: center;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
-  border: 1px solid rgba(180, 75, 72, 0.12);
-  border-radius: 1rem;
-  background: var(--danger-soft);
-  color: var(--danger-strong);
+  border: 1px solid rgba(240, 142, 124, 0.16);
+  border-radius: 1.2rem;
+  background: rgba(94, 34, 34, 0.86);
+  color: #ffd4c8;
   font-weight: 600;
   padding: 1rem;
 }
@@ -147,16 +141,23 @@
 }
 
 .imageCard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.85fr);
+  grid-template-areas:
+    "header header"
+    "image meta"
+    "image actions";
   overflow: hidden;
 }
 
 .imageHeader {
+  grid-area: header;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 0.8rem;
-  border-bottom: 1px solid var(--border-soft);
+  border-bottom: 1px solid rgba(144, 164, 180, 0.1);
   padding: 1.2rem 1.4rem;
 }
 
@@ -170,7 +171,7 @@
 
 .badge {
   border-radius: 999px;
-  background: var(--success-soft);
+  background: rgba(127, 218, 161, 0.14);
   color: var(--success-strong);
   font-size: 0.82rem;
   font-weight: 700;
@@ -178,11 +179,14 @@
 }
 
 .imageWrapper {
+  grid-area: image;
   display: flex;
-  min-height: 340px;
+  min-height: 420px;
   align-items: center;
   justify-content: center;
-  background: rgba(255, 255, 255, 0.55);
+  background:
+    linear-gradient(135deg, rgba(4, 7, 11, 0.96), rgba(12, 18, 24, 0.94)),
+    radial-gradient(circle at center, rgba(113, 202, 215, 0.08), transparent);
   padding: 1rem;
 }
 
@@ -195,16 +199,17 @@
 }
 
 .metadataPanel {
-  border-top: 1px solid var(--border-soft);
-  background: rgba(255, 255, 255, 0.52);
+  grid-area: meta;
+  border-left: 1px solid rgba(144, 164, 180, 0.1);
+  background: rgba(255, 255, 255, 0.03);
   padding: 1.2rem 1.4rem;
 }
 
 .metadataRow {
   display: flex;
-  align-items: flex-start;
-  gap: 1rem;
-  margin-bottom: 0.85rem;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin-bottom: 0.95rem;
 }
 
 .metadataRow:last-child {
@@ -212,43 +217,43 @@
 }
 
 .metadataLabel {
-  min-width: 80px;
-  color: var(--text-muted);
+  color: var(--accent-secondary);
   font-size: 0.78rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
 .metadataValue {
   flex: 1;
   border: 1px solid var(--border-soft);
-  border-radius: 0.9rem;
-  background: rgba(255, 255, 255, 0.82);
+  border-radius: 0.95rem;
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   font-family: monospace;
   font-size: 0.9rem;
-  padding: 0.65rem 0.8rem;
+  padding: 0.68rem 0.8rem;
   word-break: break-all;
 }
 
 .actions {
+  grid-area: actions;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   gap: 0.85rem;
-  border-top: 1px solid var(--border-soft);
+  border-top: 1px solid rgba(144, 164, 180, 0.1);
+  border-left: 1px solid rgba(144, 164, 180, 0.1);
   padding: 1.2rem 1.4rem 1.4rem;
 }
 
 .actionButton {
   display: inline-flex;
-  min-width: 200px;
-  flex: 1;
+  min-width: 0;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(113, 202, 215, 0.16);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text-primary);
   cursor: pointer;
   font-size: 0.96rem;
@@ -264,14 +269,14 @@
 
 .placeholder {
   margin-top: 1.5rem;
-  padding: 3.5rem 1.5rem;
+  padding: 3.2rem 1.5rem;
   text-align: center;
 }
 
 .placeholderIcon {
   margin-bottom: 1rem;
   font-size: 4rem;
-  opacity: 0.7;
+  opacity: 0.76;
 }
 
 .placeholderTitle {
@@ -289,6 +294,22 @@
   line-height: 1.7;
 }
 
+@media (max-width: 880px) {
+  .imageCard {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "header"
+      "image"
+      "meta"
+      "actions";
+  }
+
+  .metadataPanel,
+  .actions {
+    border-left: none;
+  }
+}
+
 @media (max-width: 720px) {
   .errorContainer {
     flex-direction: column;
@@ -301,32 +322,17 @@
     padding: 1rem;
   }
 
-  .metadataRow {
-    flex-direction: column;
-    gap: 0.45rem;
-  }
-
   .imageWrapper {
     min-height: 240px;
     padding: 0.75rem;
   }
 
-  .actions {
-    flex-direction: column;
-  }
-
   .actionButton {
     width: 100%;
-    min-width: 0;
   }
 }
 
 @media (max-width: 560px) {
-  .main {
-    padding-right: 0.9rem;
-    padding-left: 0.9rem;
-  }
-
   .placeholder {
     padding: 2.5rem 1rem;
   }

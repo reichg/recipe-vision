@@ -1,5 +1,3 @@
-export const MAX_UPLOAD_IMAGE_SIZE_BYTES = 1024 * 1024;
-
 export type UploadGroupImage = {
   id: string;
   file: File;
@@ -53,10 +51,6 @@ export function getTotalImageCount(groups: UploadGroupSelection[]) {
     (imageCount, group) => imageCount + group.images.length,
     0,
   );
-}
-
-export function getOversizedUploadFiles(files: File[]) {
-  return files.filter((file) => file.size > MAX_UPLOAD_IMAGE_SIZE_BYTES);
 }
 
 export function buildUploadFormData(

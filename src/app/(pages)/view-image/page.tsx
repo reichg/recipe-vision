@@ -3,6 +3,7 @@
 import { logger } from "@/lib/logger";
 import Image from "next/image";
 import { useState } from "react";
+import shellStyles from "../page-shell.module.css";
 import styles from "./page.module.css";
 
 export default function ViewS3ImagePage() {
@@ -62,13 +63,17 @@ export default function ViewS3ImagePage() {
   };
 
   return (
-    <main className={styles.main}>
+    <main className={shellStyles.main}>
       <div className={styles.container}>
-        <div className={styles.header}>
-          <h1 className={styles.title}>View S3 Image</h1>
-          <p className={styles.subtitle}>
-            Enter an S3 object key to retrieve and display your uploaded images
-          </p>
+        <div className={shellStyles.headerContainer}>
+          <div className={styles.header}>
+            <p className={styles.eyebrow}>Image inspector</p>
+            <h1 className={shellStyles.pageTitle}>View S3 Image</h1>
+            <p className={shellStyles.pageSubtitle}>
+              Enter an S3 object key to retrieve and display your uploaded
+              images
+            </p>
+          </div>
         </div>
 
         <div className={styles.controlPanel}>

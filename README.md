@@ -154,10 +154,11 @@ src/app/
 
    ```env
    DATABASE_URL="postgresql://user:password@localhost:5432/recipe_parser"
-   MAX_UPLOAD_IMAGE_SIZE_BYTES="1048576"
+    MAX_UPLOAD_IMAGE_SIZE_BYTES="5242880"
    GEMINI_API_KEY="your-gemini-api-key"
    GEMINI_MODEL="gemini-2.5-pro"
    GEMINI_TIMEOUT_MS="30000"
+    OCR_MAX_FILE_SIZE_BYTES="1048576"
    OCRSPACE_API_KEY="your-ocr-space-api-key"
    OCR_TIMEOUT_MS="30000"
    AWS_REGION="us-east-1"
@@ -456,22 +457,23 @@ All styles are centralized in `src/app/styles/` for consistency and maintainabil
 
 ## 🔐 Environment Configuration
 
-| Variable                      | Description                                                                  | Required |
-| ----------------------------- | ---------------------------------------------------------------------------- | -------- |
-| `DATABASE_URL`                | PostgreSQL connection string                                                 | Yes      |
-| `MAX_UPLOAD_IMAGE_SIZE_BYTES` | Max upload size in bytes (default: `1048576`)                                | No       |
-| `GEMINI_API_KEY`              | Google Gemini API key                                                        | Yes      |
-| `GEMINI_MODEL`                | Model ID (default: `gemini-2.5-pro`)                                         | No       |
-| `GEMINI_TIMEOUT_MS`           | Gemini timeout in milliseconds (default: `30000`)                            | No       |
-| `OCRSPACE_API_KEY`            | OCR.Space API key                                                            | Yes      |
-| `OCR_TIMEOUT_MS`              | OCR timeout in milliseconds (default: `30000`)                               | No       |
-| `AWS_REGION`                  | AWS region (e.g., `us-east-1`)                                               | Yes      |
-| `AWS_ACCESS_KEY_ID`           | AWS access key                                                               | Yes      |
-| `AWS_SECRET_ACCESS_KEY`       | AWS secret access key                                                        | Yes      |
-| `AWS_S3_BUCKET`               | S3 bucket name for image storage                                             | Yes      |
-| `S3_UNPROCESSED_PREFIX`       | Prefix used for newly uploaded images (default: `images/un-processed/`)      | No       |
-| `S3_PROCESSED_PREFIX`         | Prefix used after successful batch processing (default: `images/processed/`) | No       |
-| `S3_SIGNED_URL_TTL_SECONDS`   | Signed image URL lifetime in seconds (default: `3600`)                       | No       |
+| Variable                      | Description                                                                   | Required |
+| ----------------------------- | ----------------------------------------------------------------------------- | -------- |
+| `DATABASE_URL`                | PostgreSQL connection string                                                  | Yes      |
+| `MAX_UPLOAD_IMAGE_SIZE_BYTES` | Max source upload size in bytes before OCR preprocessing (default: `5242880`) | No       |
+| `OCR_MAX_FILE_SIZE_BYTES`     | Max OCR payload size in bytes after preprocessing (default: `1048576`)        | No       |
+| `GEMINI_API_KEY`              | Google Gemini API key                                                         | Yes      |
+| `GEMINI_MODEL`                | Model ID (default: `gemini-2.5-pro`)                                          | No       |
+| `GEMINI_TIMEOUT_MS`           | Gemini timeout in milliseconds (default: `30000`)                             | No       |
+| `OCRSPACE_API_KEY`            | OCR.Space API key                                                             | Yes      |
+| `OCR_TIMEOUT_MS`              | OCR timeout in milliseconds (default: `30000`)                                | No       |
+| `AWS_REGION`                  | AWS region (e.g., `us-east-1`)                                                | Yes      |
+| `AWS_ACCESS_KEY_ID`           | AWS access key                                                                | Yes      |
+| `AWS_SECRET_ACCESS_KEY`       | AWS secret access key                                                         | Yes      |
+| `AWS_S3_BUCKET`               | S3 bucket name for image storage                                              | Yes      |
+| `S3_UNPROCESSED_PREFIX`       | Prefix used for newly uploaded images (default: `images/un-processed/`)       | No       |
+| `S3_PROCESSED_PREFIX`         | Prefix used after successful batch processing (default: `images/processed/`)  | No       |
+| `S3_SIGNED_URL_TTL_SECONDS`   | Signed image URL lifetime in seconds (default: `3600`)                        | No       |
 
 ## 🐛 Troubleshooting
 

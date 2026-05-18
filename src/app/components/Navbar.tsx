@@ -9,7 +9,6 @@ const navItems = [
   { href: "/", label: "Home" },
   { href: "/recipes", label: "Recipes" },
   { href: "/batch-process", label: "Batch Process" },
-  { href: "/health", label: "Health" },
 ];
 
 function isActivePath(pathname: string, href: string) {
@@ -73,9 +72,7 @@ const Navbar = () => {
           className={styles.logo}
           onClick={() => setIsMenuOpen(false)}
         >
-          <span className={styles.logoMark} aria-hidden="true">
-            RV
-          </span>
+          <span className={styles.logoMark} aria-hidden="true" />
           <span className={styles.logoText}>
             <span className={styles.logoEyebrow}>Kitchen intelligence</span>
             <span className={styles.logoTitle}>Recipe Vision</span>

@@ -2,7 +2,7 @@
 
 import { MAX_RECIPES_PER_LLM_BATCH } from "@/schemas/recipeBatchSchema";
 import { useEffect, useState } from "react";
-import recipeStyles from "../recipes/recipe.module.css";
+import shellStyles from "../page-shell.module.css";
 import styles from "./page.module.css";
 
 interface ProcessResult {
@@ -218,31 +218,44 @@ export default function BatchProcessPage() {
   );
 
   return (
-    <main className={recipeStyles.main}>
-      <div className={styles.header}>
-        <h1 className={recipeStyles.pageTitle}>Batch Process S3 Images</h1>
-        <p className={recipeStyles.pageSubtitle}>
-          Process uploaded recipe-photo groups from S3 and parse each group as
-          one recipe
-        </p>
+    <main className={shellStyles.main}>
+      <div className={shellStyles.headerContainer}>
+        <div className={styles.header}>
+          <p className={styles.eyebrow}>Extraction control</p>
+          <h1 className={shellStyles.pageTitle}>Batch Process S3 Images</h1>
+          <p className={shellStyles.pageSubtitle}>
+            Turn queued recipe-photo groups into saved, searchable recipes with
+            a controlled extraction run.
+          </p>
+        </div>
+
+        <div className={styles.heroSummary}>
+          <div className={styles.summaryCards}>
+            <div
+              className={`${styles.summaryCard} ${styles.summaryCardPending}`}
+            >
+              <div className={styles.summaryValue}>
+                {loadingSummary ? "..." : pendingRecipeCount}
+              </div>
+              <div className={styles.summaryLabel}>
+                Unprocessed Recipe Groups
+              </div>
+            </div>
+            <div className={styles.summaryCard}>
+              <div className={styles.summaryValue}>
+                {Math.min(maxProcessLimit || 0, MAX_RECIPES_PER_LLM_BATCH)}
+              </div>
+              <div className={styles.summaryLabel}>Max Per Run</div>
+            </div>
+          </div>
+          <p className={styles.heroHint}>
+            Use this console to drain the unprocessed queue in deliberate runs
+            instead of flooding the extraction pipeline.
+          </p>
+        </div>
       </div>
 
       <div className={styles.panel}>
-        <div className={styles.summaryCards}>
-          <div className={`${styles.summaryCard} ${styles.summaryCardPending}`}>
-            <div className={styles.summaryValue}>
-              {loadingSummary ? "..." : pendingRecipeCount}
-            </div>
-            <div className={styles.summaryLabel}>Unprocessed Recipe Groups</div>
-          </div>
-          <div className={styles.summaryCard}>
-            <div className={styles.summaryValue}>
-              {Math.min(maxProcessLimit || 0, MAX_RECIPES_PER_LLM_BATCH)}
-            </div>
-            <div className={styles.summaryLabel}>Max Per Run</div>
-          </div>
-        </div>
-
         <div className={styles.fieldGroup}>
           <label className={styles.fieldLabel}>
             S3 Prefix (Directory Path)
@@ -348,7 +361,7 @@ export default function BatchProcessPage() {
           </div>
         )}
 
-        {error && <p className={recipeStyles.error}>{error}</p>}
+        {error && <p className={shellStyles.error}>{error}</p>}
 
         {results.length > 0 && (
           <div className={styles.results}>

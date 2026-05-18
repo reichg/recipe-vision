@@ -7,7 +7,7 @@ const uploadEnvSchema = z.object({
     .number()
     .int()
     .positive()
-    .default(1024 * 1024),
+    .default(5 * 1024 * 1024),
 });
 
 const databaseEnvSchema = z.object({

@@ -5,14 +5,13 @@ import { MAX_UPLOAD_RECIPE_GROUPS } from "@/schemas/uploadGroupSchema";
 import Image from "next/image";
 import { useEffect, useId, useRef, useState } from "react";
 
-import recipeStyles from "../recipes/recipe.module.css";
+import shellStyles from "../page-shell.module.css";
 import styles from "./page.module.css";
 import {
   buildUploadFormData,
   createClientId,
   createInitialUploadGroups,
   getFilledUploadGroups,
-  getOversizedUploadFiles,
   getTotalImageCount,
   type UploadGroupImage,
   type UploadGroupSelection,
@@ -63,17 +62,6 @@ export default function ParsePage() {
 
   function appendFilesToGroup(groupId: string, selectedFiles: File[]) {
     if (selectedFiles.length === 0) {
-      return;
-    }
-
-    const oversizedFiles = getOversizedUploadFiles(selectedFiles);
-
-    if (oversizedFiles.length > 0) {
-      setError(
-        `The following image${oversizedFiles.length > 1 ? "s are" : " is"} too large (max 1024 KB):\n` +
-          oversizedFiles.map((file) => `- ${file.name}`).join("\n"),
-      );
-      setTimeout(() => setError(null), 5000);
       return;
     }
 
@@ -197,7 +185,7 @@ export default function ParsePage() {
   }
 
   return (
-    <main className={recipeStyles.main}>
+    <main className={shellStyles.main}>
       {s3UploadSuccess && (
         <div className={styles.popupOverlay}>
           <div className={styles.popup}>
@@ -212,36 +200,44 @@ export default function ParsePage() {
         </div>
       )}
 
-      <div className={recipeStyles.headerContainer}>
+      <div className={shellStyles.headerContainer}>
         <div className={styles.pageIntro}>
           <p className={styles.eyebrow}>Recipe Intake</p>
-          <h1 className={recipeStyles.pageTitle}>Uploader</h1>
-          <p className={recipeStyles.pageSubtitle}>
+          <h1 className={shellStyles.pageTitle}>Uploader</h1>
+          <p className={shellStyles.pageSubtitle}>
             Queue up to {MAX_UPLOAD_RECIPE_GROUPS} recipe groups in one upload.
             Each group can contain one or more photos that will stay together
             for batch extraction.
           </p>
         </div>
+
+        <div className={styles.heroRail}>
+          <div className={styles.summaryStrip}>
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>Recipe groups</span>
+              <strong className={styles.summaryValue}>
+                {filledGroups.length}/{MAX_UPLOAD_RECIPE_GROUPS}
+              </strong>
+            </div>
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>Images queued</span>
+              <strong className={styles.summaryValue}>{totalImageCount}</strong>
+            </div>
+            <div className={styles.summaryCard}>
+              <span className={styles.summaryLabel}>Batch-ready grouping</span>
+              <strong className={styles.summaryValue}>
+                One recipe per card
+              </strong>
+            </div>
+          </div>
+          <p className={styles.heroNote}>
+            Build each card like a contact sheet for one recipe. The extractor
+            will treat every grouped stack as a single parsing job.
+          </p>
+        </div>
       </div>
 
-      <form className={recipeStyles.form}>
-        <div className={styles.summaryStrip}>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Recipe groups</span>
-            <strong className={styles.summaryValue}>
-              {filledGroups.length}/{MAX_UPLOAD_RECIPE_GROUPS}
-            </strong>
-          </div>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Images queued</span>
-            <strong className={styles.summaryValue}>{totalImageCount}</strong>
-          </div>
-          <div className={styles.summaryCard}>
-            <span className={styles.summaryLabel}>Batch-ready grouping</span>
-            <strong className={styles.summaryValue}>One recipe per card</strong>
-          </div>
-        </div>
-
+      <form className={shellStyles.form}>
         <div className={styles.groupList}>
           {groups.map((group, groupIndex) => {
             const inputId = `${uploadGroupInputIdPrefix}-upload-group-${groupIndex}`;
@@ -298,15 +294,16 @@ export default function ParsePage() {
                           : "Click to add one or more photos for this recipe"}
                       </div>
                       <div className={styles.fileInputSubText}>
-                        PNG, JPG, JPEG, GIF, or WEBP up to 1024 KB each
+                        PNG, JPG, JPEG, GIF, or WEBP. Large photos are optimized
+                        into a black-and-white OCR image before parsing.
                       </div>
                     </div>
                   </div>
                 </label>
 
                 {group.images.length > 0 ? (
-                  <div className={recipeStyles.previewBox}>
-                    <p className={recipeStyles.previewLabel}>
+                  <div className={shellStyles.previewBox}>
+                    <p className={shellStyles.previewLabel}>
                       Preview ({group.images.length} image
                       {group.images.length === 1 ? "" : "s"})
                     </p>
@@ -374,7 +371,7 @@ export default function ParsePage() {
         </div>
       </form>
 
-      {error && <p className={recipeStyles.error}>{error}</p>}
+      {error && <p className={shellStyles.error}>{error}</p>}
     </main>
   );
 }

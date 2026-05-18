@@ -7,12 +7,14 @@ import {
 import { ocrSpaceExtractText } from "@/server/ai/ocr";
 import { prisma } from "@/server/db/prisma";
 import { AppError } from "@/server/shared/errors";
+import { Prisma } from "../../../generated/prisma/client";
 
 import { assertValidImageFiles } from "./s3-validation";
 
 type ListRecipesOptions = {
   page: number;
   limit: number;
+  query?: string;
 };
 
 type CreateRecipeFromImagesOptions = {
@@ -34,6 +36,56 @@ type PrismaKnownRequestErrorLike = Error & {
     target?: unknown;
   };
 };
+
+type RecipeListRecord = {
+  id: string;
+  title: string;
+  createdAt: Date;
+  json: RecipeFromSchema;
+};
+
+type RecipeCountRecord = {
+  total: number;
+};
+
+function escapeLikePattern(value: string) {
+  return value.replace(/[\\%_]/g, "\\$&");
+}
+
+function createPagination(page: number, limit: number, total: number) {
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    page,
+    limit,
+    total,
+    totalPages,
+    hasNext: page < totalPages,
+    hasPrev: page > 1,
+  };
+}
+
+function buildRecipeSearchWhere(searchPattern: string) {
+  return Prisma.sql`
+    WHERE (
+      r."title" ILIKE ${searchPattern} ESCAPE '\\'
+      OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements(
+          CASE
+            WHEN jsonb_typeof(r."json"->'ingredients') = 'array'
+              THEN r."json"->'ingredients'
+            ELSE '[]'::jsonb
+          END
+        ) AS ingredient
+        WHERE (
+          COALESCE(ingredient->>'name', '') ILIKE ${searchPattern} ESCAPE '\\'
+          OR COALESCE(ingredient->>'notes', '') ILIKE ${searchPattern} ESCAPE '\\'
+        )
+      )
+    )
+  `;
+}
 
 function isSourceImageGroupKeyConflict(error: unknown) {
   if (!(error instanceof Error)) {
@@ -65,8 +117,36 @@ function logParsedRecipe(
   });
 }
 
-export async function listRecipes({ page, limit }: ListRecipesOptions) {
+export async function listRecipes({ page, limit, query }: ListRecipesOptions) {
   const skip = (page - 1) * limit;
+
+  if (query) {
+    const searchPattern = `%${escapeLikePattern(query)}%`;
+    const searchWhere = buildRecipeSearchWhere(searchPattern);
+
+    const [recipes, countRows] = await Promise.all([
+      prisma.$queryRaw<Array<RecipeListRecord>>(Prisma.sql`
+        SELECT r."id", r."title", r."createdAt", r."json"
+        FROM "Recipe" r
+        ${searchWhere}
+        ORDER BY r."createdAt" DESC
+        OFFSET ${skip}
+        LIMIT ${limit}
+      `),
+      prisma.$queryRaw<Array<RecipeCountRecord>>(Prisma.sql`
+        SELECT COUNT(*)::int AS "total"
+        FROM "Recipe" r
+        ${searchWhere}
+      `),
+    ]);
+
+    const total = countRows[0]?.total ?? 0;
+
+    return {
+      recipes,
+      pagination: createPagination(page, limit, total),
+    };
+  }
 
   const [recipes, total] = await Promise.all([
     prisma.recipe.findMany({
@@ -78,18 +158,9 @@ export async function listRecipes({ page, limit }: ListRecipesOptions) {
     prisma.recipe.count(),
   ]);
 
-  const totalPages = Math.ceil(total / limit);
-
   return {
     recipes,
-    pagination: {
-      page,
-      limit,
-      total,
-      totalPages,
-      hasNext: page < totalPages,
-      hasPrev: page > 1,
-    },
+    pagination: createPagination(page, limit, total),
   };
 }
 
