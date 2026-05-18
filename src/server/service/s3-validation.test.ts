@@ -11,11 +11,16 @@ import {
   s3ObjectKeySchema,
 } from "./s3-validation";
 
+const LEGACY_OCR_UPLOAD_LIMIT_BYTES = 1024 * 1024;
+const DEFAULT_UPLOAD_LIMIT_BYTES = 5 * 1024 * 1024;
+
 const originalMaxUploadImageSizeBytes = process.env.MAX_UPLOAD_IMAGE_SIZE_BYTES;
 
 describe("s3 validation", () => {
   beforeEach(() => {
-    process.env.MAX_UPLOAD_IMAGE_SIZE_BYTES = "10";
+    process.env.MAX_UPLOAD_IMAGE_SIZE_BYTES = String(
+      DEFAULT_UPLOAD_LIMIT_BYTES,
+    );
     resetEnvCache();
   });
 
@@ -33,6 +38,18 @@ describe("s3 validation", () => {
     expect(() =>
       assertValidImageFile(
         new File([new Uint8Array(10)], "recipe.jpg", { type: "image/jpeg" }),
+      ),
+    ).not.toThrow();
+  });
+
+  it("accepts uploads that are larger than the OCR provider cap", () => {
+    expect(() =>
+      assertValidImageFile(
+        new File(
+          [new Uint8Array(LEGACY_OCR_UPLOAD_LIMIT_BYTES + 1)],
+          "recipe.jpg",
+          { type: "image/jpeg" },
+        ),
       ),
     ).not.toThrow();
   });
@@ -56,7 +73,11 @@ describe("s3 validation", () => {
   it("rejects uploads larger than the configured limit", () => {
     try {
       assertValidImageFile(
-        new File([new Uint8Array(11)], "recipe.jpg", { type: "image/jpeg" }),
+        new File(
+          [new Uint8Array(DEFAULT_UPLOAD_LIMIT_BYTES + 1)],
+          "recipe.jpg",
+          { type: "image/jpeg" },
+        ),
       );
       throw new Error("Expected assertValidImageFile to throw");
     } catch (error) {

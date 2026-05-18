@@ -52,6 +52,89 @@ async function createColorImageFile() {
   });
 }
 
+async function createOversizedSourceImageFile() {
+  const width = 1024;
+  const height = 1024;
+  const data = Buffer.alloc(width * height * 3);
+
+  for (let index = 0; index < data.length; index += 1) {
+    data[index] = index % 251;
+  }
+
+  const buffer = await sharp(data, {
+    raw: {
+      channels: 3,
+      height,
+      width,
+    },
+  })
+    .jpeg({ quality: 100 })
+    .toBuffer();
+
+  return new File([new Uint8Array(buffer)], "recipe.jpg", {
+    type: "image/jpeg",
+  });
+}
+
+async function createLowContrastSourceImageFile() {
+  const width = 640;
+  const height = 960;
+  const data = Buffer.alloc(width * height * 3);
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const offset = (y * width + x) * 3;
+
+      data[offset] = 234;
+      data[offset + 1] = 228;
+      data[offset + 2] = 219;
+    }
+  }
+
+  const drawBand = (
+    top: number,
+    bandHeight: number,
+    left: number,
+    right: number,
+    tone: number,
+  ) => {
+    for (let y = top; y < top + bandHeight; y += 1) {
+      for (let x = left; x < right; x += 1) {
+        const offset = (y * width + x) * 3;
+
+        data[offset] = tone;
+        data[offset + 1] = tone - 6;
+        data[offset + 2] = tone - 12;
+      }
+    }
+  };
+
+  drawBand(64, 26, 72, 520, 150);
+  drawBand(104, 26, 72, 470, 150);
+
+  for (let index = 0; index < 14; index += 1) {
+    const tone = 182 - (index % 3) * 14;
+    const top = 190 + index * 42;
+
+    drawBand(top, 10, 76, 540, tone);
+    drawBand(top + 16, 10, 76, 500, tone + 8);
+  }
+
+  const buffer = await sharp(data, {
+    raw: {
+      channels: 3,
+      height,
+      width,
+    },
+  })
+    .jpeg({ quality: 92 })
+    .toBuffer();
+
+  return new File([new Uint8Array(buffer)], "newspaper-scan.jpg", {
+    type: "image/jpeg",
+  });
+}
+
 describe("ocr", () => {
   beforeEach(() => {
     env.OCRSPACE_DAILY_LIMIT = 3;
@@ -68,20 +151,32 @@ describe("ocr", () => {
     resetOcrRateLimitState();
   });
 
-  it("prepares OCR uploads as black-and-white png files within the OCR size cap", async () => {
-    const preparedFile = await prepareImageForOcr(await createColorImageFile());
+  it("prepares oversized OCR uploads as grayscale png files within the OCR size cap", async () => {
+    const sourceFile = await createOversizedSourceImageFile();
+    const preparedFile = await prepareImageForOcr(sourceFile);
+    const preparedBuffer = Buffer.from(await preparedFile.arrayBuffer());
+    const rawImage = await sharp(preparedBuffer)
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    expect(sourceFile.size).toBeGreaterThan(env.OCR_MAX_FILE_SIZE_BYTES);
+    expect(preparedFile.type).toBe("image/png");
+    expect(preparedFile.name).toBe("recipe-ocr.png");
+    expect(preparedFile.size).toBeLessThanOrEqual(env.OCR_MAX_FILE_SIZE_BYTES);
+    expect(new Set(rawImage.data).size).toBeGreaterThan(2);
+  });
+
+  it("preserves grayscale detail for low-contrast OCR inputs", async () => {
+    const sourceFile = await createLowContrastSourceImageFile();
+    const preparedFile = await prepareImageForOcr(sourceFile);
     const preparedBuffer = Buffer.from(await preparedFile.arrayBuffer());
     const rawImage = await sharp(preparedBuffer)
       .raw()
       .toBuffer({ resolveWithObject: true });
 
     expect(preparedFile.type).toBe("image/png");
-    expect(preparedFile.name).toBe("recipe-ocr.png");
     expect(preparedFile.size).toBeLessThanOrEqual(env.OCR_MAX_FILE_SIZE_BYTES);
-
-    for (const value of new Set(rawImage.data)) {
-      expect([0, 255]).toContain(value);
-    }
+    expect(new Set(rawImage.data).size).toBeGreaterThan(2);
   });
 
   it("enforces OCR.Space hourly and daily request quotas", () => {

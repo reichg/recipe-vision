@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { UploadGroupSelection } from "./upload-form";
 import { buildUploadFormData, createInitialUploadGroups } from "./upload-form";
 
+const LEGACY_OCR_UPLOAD_LIMIT_BYTES = 1024 * 1024;
+
 function createUploadGroup(
   id: string,
   fileNames: string[],
@@ -45,6 +47,33 @@ describe("upload form helpers", () => {
       { clientGroupId: "recipe-1", fileIndexes: [0, 1] },
       { clientGroupId: "recipe-2", fileIndexes: [2] },
     ]);
+  });
+
+  it("keeps files larger than the OCR provider cap in the client upload payload", () => {
+    const largeFile = new File(
+      [new Uint8Array(LEGACY_OCR_UPLOAD_LIMIT_BYTES + 1)],
+      "large-recipe.jpg",
+      { type: "image/jpeg" },
+    );
+    const uploadGroups: UploadGroupSelection[] = [
+      {
+        id: "recipe-1",
+        images: [
+          {
+            id: "recipe-1-1",
+            file: largeFile,
+            previewUrl: "blob:recipe-1-1",
+          },
+        ],
+      },
+    ];
+
+    const result = buildUploadFormData(uploadGroups);
+    const imageFiles = result.formData.getAll("images") as File[];
+
+    expect(imageFiles).toHaveLength(1);
+    expect(imageFiles[0]?.name).toBe("large-recipe.jpg");
+    expect(imageFiles[0]?.size).toBe(LEGACY_OCR_UPLOAD_LIMIT_BYTES + 1);
   });
 
   it("creates the initial upload-page state used after a successful reset", () => {

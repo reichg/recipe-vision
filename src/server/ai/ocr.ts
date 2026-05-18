@@ -128,8 +128,7 @@ export async function prepareImageForOcr(file: File): Promise<File> {
       .rotate()
       .flatten({ background: "#ffffff" })
       .greyscale()
-      .normalise()
-      .threshold(170);
+      .normalise();
 
     if (width && height) {
       pipeline = pipeline.resize({

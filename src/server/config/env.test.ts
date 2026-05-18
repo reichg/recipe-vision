@@ -47,7 +47,7 @@ describe("env", () => {
         OCRSPACE_API_KEY: "ocr-key",
       }),
     ).toEqual({
-      MAX_UPLOAD_IMAGE_SIZE_BYTES: 1024 * 1024,
+      MAX_UPLOAD_IMAGE_SIZE_BYTES: 5 * 1024 * 1024,
       GEMINI_API_KEY: "gemini-key",
       GEMINI_MODEL: "gemini-2.5-flash-lite",
       GEMINI_MODELS: ["gemini-2.5-flash-lite"],

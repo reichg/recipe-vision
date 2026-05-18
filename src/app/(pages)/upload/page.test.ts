@@ -27,4 +27,13 @@ describe("upload page", () => {
     expect(firstRender.labelFor).toBe(firstRender.inputId);
     expect(secondRender).toEqual(firstRender);
   });
+
+  it("describes OCR preprocessing instead of a hard 1024 KB upload cap", () => {
+    const markup = renderToStaticMarkup(createElement(ParsePage));
+
+    expect(markup).toContain(
+      "Large photos are optimized into a black-and-white OCR image before parsing.",
+    );
+    expect(markup).not.toContain("up to 1024 KB each");
+  });
 });

@@ -12,7 +12,6 @@ import {
   createClientId,
   createInitialUploadGroups,
   getFilledUploadGroups,
-  getOversizedUploadFiles,
   getTotalImageCount,
   type UploadGroupImage,
   type UploadGroupSelection,
@@ -63,17 +62,6 @@ export default function ParsePage() {
 
   function appendFilesToGroup(groupId: string, selectedFiles: File[]) {
     if (selectedFiles.length === 0) {
-      return;
-    }
-
-    const oversizedFiles = getOversizedUploadFiles(selectedFiles);
-
-    if (oversizedFiles.length > 0) {
-      setError(
-        `The following image${oversizedFiles.length > 1 ? "s are" : " is"} too large (max 1024 KB):\n` +
-          oversizedFiles.map((file) => `- ${file.name}`).join("\n"),
-      );
-      setTimeout(() => setError(null), 5000);
       return;
     }
 
@@ -298,7 +286,8 @@ export default function ParsePage() {
                           : "Click to add one or more photos for this recipe"}
                       </div>
                       <div className={styles.fileInputSubText}>
-                        PNG, JPG, JPEG, GIF, or WEBP up to 1024 KB each
+                        PNG, JPG, JPEG, GIF, or WEBP. Large photos are optimized
+                        into a black-and-white OCR image before parsing.
                       </div>
                     </div>
                   </div>
