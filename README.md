@@ -5,7 +5,7 @@ A modern web application that transforms recipe photos into structured, searchab
 ## ✨ Features
 
 - **📸 Image-to-Recipe Conversion** - Upload single or multiple recipe photos and automatically extract structured recipe data
-- **🤖 AI-Powered Parsing** - Uses Google Gemini 2.5 Pro for intelligent recipe extraction
+- **🤖 AI-Powered Parsing** - Uses env-driven LLM rotation across Gemini, Mistral, Groq, OpenRouter, and Cerebras for recipe extraction
 - **📖 OCR Technology** - Leverages OCR.Space for accurate text extraction from images
 - **☁️ S3 Integration** - Upload images to AWS S3 for cloud storage
   - Multi-file upload support
@@ -40,7 +40,7 @@ A modern web application that transforms recipe photos into structured, searchab
 - **Backend**: Thin Next.js App Router API routes with server services
 - **Database**: PostgreSQL with Prisma ORM
 - **Cloud Storage**: AWS S3
-- **AI/ML**: Google Gemini 2.5 Pro API
+- **AI/ML**: Env-driven LLM rotation across Gemini, Mistral, Groq, OpenRouter, and Cerebras
 - **OCR**: OCR.Space API
 - **Validation**: Zod schema validation
 - **Styling**: Centralized TypeScript style modules
@@ -131,8 +131,8 @@ src/app/
 - Node.js 18+
 - PostgreSQL database
 - API Keys:
-  - Google Gemini API key
-  - OCR.Space API key (optional - has free tier)
+  - At least one LLM provider API key: Gemini, Mistral, Groq, OpenRouter, or Cerebras
+  - OCR.Space API key
 
 ### Installation
 
@@ -154,11 +154,20 @@ src/app/
 
    ```env
    DATABASE_URL="postgresql://user:password@localhost:5432/recipe_parser"
-    MAX_UPLOAD_IMAGE_SIZE_BYTES="5242880"
+   MAX_UPLOAD_IMAGE_SIZE_BYTES="5242880"
    GEMINI_API_KEY="your-gemini-api-key"
    GEMINI_MODEL="gemini-2.5-pro"
+   GEMINI_FALLBACK_MODELS="gemini-2.5-flash-lite,gemini-2.5-flash"
+   MISTRAL_API_KEY="your-mistral-api-key"
+   MISTRAL_MODELS="mistral-small-latest,ministral-8b-latest,open-mistral-nemo"
+   GROQ_API_KEY="your-groq-api-key"
+   GROQ_MODELS="llama-3.3-70b-versatile,qwen/qwen3-32b,llama-3.1-8b-instant"
+   OPENROUTER_API_KEY="your-openrouter-api-key"
+   OPENROUTER_MODELS="google/gemma-3-27b-it:free,meta-llama/llama-3.3-70b-instruct:free,mistralai/mistral-small-3.1-24b-instruct:free"
+   CEREBRAS_API_KEY="your-cerebras-api-key"
+   CEREBRAS_MODELS="qwen-3-32b,llama-3.3-70b"
    GEMINI_TIMEOUT_MS="30000"
-    OCR_MAX_FILE_SIZE_BYTES="1048576"
+   OCR_MAX_FILE_SIZE_BYTES="1048576"
    OCRSPACE_API_KEY="your-ocr-space-api-key"
    OCR_TIMEOUT_MS="30000"
    AWS_REGION="us-east-1"
@@ -169,6 +178,8 @@ src/app/
    S3_PROCESSED_PREFIX="images/processed/"
    S3_SIGNED_URL_TTL_SECONDS="3600"
    ```
+
+The app builds an ordered LLM candidate roster from the configured provider/model env vars. Providers without API keys are skipped. Requests rotate across the configured providers and models, temporarily skip providers that return rate-limit signals, and retry them after the advertised cooldown expires. Non-rate-limit provider failures do not fail over to the next candidate. `GEMINI_TIMEOUT_MS` currently applies to every LLM provider attempt.
 
 4. **Set up the database**
 

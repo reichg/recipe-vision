@@ -87,7 +87,7 @@ export function getNoRecipesMessage(query: string) {
     return "No recipes found.";
   }
 
-  return `No recipes match "${query}". Try a different title or ingredient.`;
+  return `No recipes match "${query}". Try a different search term.`;
 }
 
 export async function fetchRecipesPage(page: number, query: string) {
@@ -317,7 +317,8 @@ export default function RecipesPage() {
               Search recipes
             </label>
             <p id="recipe-search-help" className={styles.searchHelpText}>
-              Search by title or ingredient. Results update as you type.
+              Search across titles, ingredients, tags, and instructions. Results
+              update as you type.
             </p>
           </div>
 

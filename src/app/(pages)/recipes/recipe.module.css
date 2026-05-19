@@ -170,6 +170,7 @@
 .paginationPageButton,
 .paginationPageButtonActive,
 .deleteButton {
+  box-sizing: border-box;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -299,6 +300,7 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 1.15rem;
+  row-gap: 4rem;
 }
 
 .recipeCardWrapper {
@@ -342,6 +344,8 @@
 }
 
 .compactRecipeLink {
+  display: flex;
+  flex: 1 1 auto;
   color: inherit;
   text-decoration: none;
 }
@@ -352,8 +356,7 @@
 
 .compactRecipeCard {
   display: flex;
-  height: 100%;
-  min-height: 100%;
+  flex: 1 1 auto;
   flex-direction: column;
   gap: 1.1rem;
 }
@@ -368,6 +371,7 @@
   display: -webkit-box;
   overflow: hidden;
   margin: 0;
+  padding: 0.3rem 0px;
   color: var(--text-primary);
   font-family: var(--font-playfair);
   font-size: 1.72rem;

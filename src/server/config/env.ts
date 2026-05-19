@@ -41,7 +41,7 @@ const optionalApiKeySchema = z.preprocess(
 );
 
 const aiEnvSchema = uploadEnvSchema.extend({
-  GEMINI_API_KEY: z.string().min(1),
+  GEMINI_API_KEY: optionalApiKeySchema,
   GEMINI_MODEL: z.string().min(1).default("gemini-2.5-pro"),
   GEMINI_FALLBACK_MODELS: z.string().default(""),
   GEMINI_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
@@ -122,7 +122,7 @@ export type LlmModelCandidate = {
 };
 
 export type AiEnv = UploadEnv & {
-  GEMINI_API_KEY: string;
+  GEMINI_API_KEY?: string;
   GEMINI_MODEL: string;
   GEMINI_MODELS: string[];
   GEMINI_TIMEOUT_MS: number;
@@ -169,7 +169,9 @@ export function parseAiEnv(env: NodeJS.ProcessEnv): AiEnv {
   const openRouterModels = parseCommaSeparatedStrings(parsed.OPENROUTER_MODELS);
   const cerebrasModels = parseCommaSeparatedStrings(parsed.CEREBRAS_MODELS);
   const llmModelCandidates: LlmModelCandidate[] = [
-    ...geminiModels.map((model) => ({ provider: "gemini" as const, model })),
+    ...(parsed.GEMINI_API_KEY
+      ? geminiModels.map((model) => ({ provider: "gemini" as const, model }))
+      : []),
     ...(parsed.MISTRAL_API_KEY
       ? mistralModels.map((model) => ({ provider: "mistral" as const, model }))
       : []),
@@ -189,6 +191,22 @@ export function parseAiEnv(env: NodeJS.ProcessEnv): AiEnv {
         }))
       : []),
   ];
+
+  if (llmModelCandidates.length === 0) {
+    throw new AppError({
+      code: "AI_ENV_INVALID",
+      message: "Service is not configured",
+      statusCode: 500,
+      cause: {
+        fieldErrors: {
+          LLM_MODEL_CANDIDATES: [
+            "Configure at least one LLM provider API key.",
+          ],
+        },
+        formErrors: [],
+      },
+    });
+  }
 
   return {
     GEMINI_API_KEY: parsed.GEMINI_API_KEY,

@@ -55,12 +55,38 @@ import {
   listRecipes,
 } from "./recipes";
 
+function getPrismaSqlText(query: unknown) {
+  if (!query || typeof query !== "object") {
+    return "";
+  }
+
+  const maybeQuery = query as {
+    sql?: unknown;
+    text?: unknown;
+    strings?: unknown;
+  };
+
+  if (typeof maybeQuery.sql === "string") {
+    return maybeQuery.sql;
+  }
+
+  if (typeof maybeQuery.text === "string") {
+    return maybeQuery.text;
+  }
+
+  if (Array.isArray(maybeQuery.strings)) {
+    return maybeQuery.strings.join("?");
+  }
+
+  return "";
+}
+
 describe("listRecipes", () => {
   afterEach(() => {
     vi.clearAllMocks();
   });
 
-  it("returns paginated recipes without search via Prisma findMany/count", async () => {
+  it("returns paginated recipes in alphabetical order via Prisma findMany/count", async () => {
     const recipes = [
       {
         id: "recipe_1",
@@ -90,7 +116,7 @@ describe("listRecipes", () => {
     });
 
     expect(mocks.prismaFindMany).toHaveBeenCalledWith({
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ title: "asc" }, { id: "asc" }],
       skip: 0,
       take: 2,
       select: { id: true, title: true, createdAt: true, json: true },
@@ -99,7 +125,7 @@ describe("listRecipes", () => {
     expect(mocks.prismaQueryRaw).not.toHaveBeenCalled();
   });
 
-  it("returns filtered pagination when searching title and ingredients", async () => {
+  it("returns filtered pagination when searching titles, ingredients, tags, and steps", async () => {
     const recipes = [
       {
         id: "recipe_2",
@@ -134,6 +160,17 @@ describe("listRecipes", () => {
     expect(mocks.prismaQueryRaw).toHaveBeenCalledTimes(2);
     expect(mocks.prismaFindMany).not.toHaveBeenCalled();
     expect(mocks.prismaCount).not.toHaveBeenCalled();
+
+    const recipeQueryText = getPrismaSqlText(
+      mocks.prismaQueryRaw.mock.calls[0]?.[0],
+    );
+
+    expect(recipeQueryText).toContain('r."title" ILIKE');
+    expect(recipeQueryText).toContain("ingredient->>'name'");
+    expect(recipeQueryText).toContain("ingredient->>'notes'");
+    expect(recipeQueryText).toContain("r.\"json\"->'tags'");
+    expect(recipeQueryText).toContain("r.\"json\"->'steps'");
+    expect(recipeQueryText).toContain('ORDER BY r."title" ASC, r."id" ASC');
   });
 });
 

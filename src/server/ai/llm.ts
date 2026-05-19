@@ -7,10 +7,28 @@ import {
   type LlmProviderName,
 } from "@/server/config/env";
 import { AppError, isAppError } from "@/server/shared/errors";
-import { createRateLimitTelemetry } from "@/server/shared/http";
+import {
+  createRateLimitTelemetry,
+  type RateLimitTelemetry,
+} from "@/server/shared/http";
 import { withTimeout } from "@/server/shared/timeout";
 
 import { getGeminiClient, isGeminiRateLimitError } from "./gemini";
+import {
+  createLlmProvidersRateLimitedError,
+  getLlmCandidateExecutionOrder,
+  markLlmCandidateSuccess,
+  markLlmProviderRateLimited,
+} from "./llm-provider-rotation";
+import {
+  invokeCerebrasChat,
+  invokeGroqChat,
+  invokeMistralChat,
+  invokeOpenRouterChat,
+  type ProviderSdkHeaders,
+  type ProviderSdkRequest,
+  type ProviderSdkResponse,
+} from "./provider-sdks";
 
 type StructuredRecipeJsonRequest = {
   instructionText: string;
@@ -32,14 +50,7 @@ type StructuredRecipePromptRequest = {
 
 type OpenAiCompatibleProvider = Exclude<LlmProviderName, "gemini">;
 
-const OPENAI_COMPATIBLE_ENDPOINTS: Record<OpenAiCompatibleProvider, string> = {
-  mistral: "https://api.mistral.ai/v1/chat/completions",
-  groq: "https://api.groq.com/openai/v1/chat/completions",
-  openrouter: "https://openrouter.ai/api/v1/chat/completions",
-  cerebras: "https://api.cerebras.ai/v1/chat/completions",
-};
-
-const OPENAI_COMPATIBLE_RESPONSE_SCHEMA = z.object({
+const CHAT_COMPLETION_RESPONSE_SCHEMA = z.object({
   choices: z
     .array(
       z.object({
@@ -62,26 +73,39 @@ const OPENAI_COMPATIBLE_RESPONSE_SCHEMA = z.object({
     .min(1),
 });
 
-const OPENAI_COMPATIBLE_ERROR_SCHEMA = z.object({
-  error: z
-    .object({
-      code: z.union([z.string(), z.number()]).optional(),
-      message: z.string().optional(),
-      type: z.string().optional(),
-    })
-    .optional(),
-});
-
 const LLM_RATE_LIMIT_MESSAGE_PATTERN =
   /(rate\s*limit|too many requests|quota|resource exhausted)/i;
-
-type ProviderHeaders = Headers | Record<string, string> | undefined;
+const LLM_RATE_LIMITED_MESSAGE =
+  "Recipe extraction is temporarily rate limited. Please try again later.";
 
 type ErrorWithStatus = {
-  headers?: ProviderHeaders;
+  code?: unknown;
+  headers?: ProviderSdkHeaders;
   message?: unknown;
+  name?: unknown;
+  response?: {
+    headers?: ProviderSdkHeaders;
+    status?: unknown;
+    statusCode?: unknown;
+  };
   status?: unknown;
+  statusCode?: unknown;
+  type?: unknown;
 };
+
+const PROVIDER_SDK_EXECUTORS: Record<
+  OpenAiCompatibleProvider,
+  (request: ProviderSdkRequest) => Promise<ProviderSdkResponse>
+> = {
+  mistral: invokeMistralChat,
+  groq: invokeGroqChat,
+  openrouter: invokeOpenRouterChat,
+  cerebras: invokeCerebrasChat,
+};
+
+function getLlmCandidateKey(candidate: LlmModelCandidate) {
+  return `${candidate.provider}:${candidate.model}`;
+}
 
 function buildSingleRecipePromptSections(ocrSegments: string[]) {
   return ocrSegments.map(
@@ -118,17 +142,59 @@ function createLlmTimeoutError() {
 
 function createProviderRateLimitError(
   candidate: LlmModelCandidate,
-  cause?: unknown,
+  options: {
+    headers?: ProviderSdkHeaders;
+    status?: number | null;
+  } = {},
 ) {
   return new AppError({
     code: "LLM_PROVIDER_RATE_LIMITED",
-    message:
-      "Recipe extraction is temporarily rate limited. Please try again later.",
+    message: LLM_RATE_LIMITED_MESSAGE,
     statusCode: 503,
     cause: {
       provider: candidate.provider,
       model: candidate.model,
-      detail: cause,
+      rateLimit: createRateLimitTelemetry(
+        options.headers,
+        options.status ?? undefined,
+      ),
+      status: options.status ?? null,
+    },
+  });
+}
+
+function createProviderRequestFailedError(
+  candidate: LlmModelCandidate,
+  error: unknown,
+) {
+  const { status } = getProviderErrorMetadata(error);
+
+  return new AppError({
+    code: "LLM_REQUEST_FAILED",
+    message: "Recipe extraction failed",
+    statusCode: 502,
+    cause: {
+      provider: candidate.provider,
+      model: candidate.model,
+      providerError: getProviderErrorSummary(error),
+      status,
+    },
+  });
+}
+
+function createProviderResponseError(
+  candidate: LlmModelCandidate,
+  code: "LLM_EMPTY_RESPONSE" | "LLM_INVALID_RESPONSE",
+  cause?: unknown,
+) {
+  return new AppError({
+    code,
+    message: "Recipe extraction failed",
+    statusCode: 502,
+    cause: {
+      provider: candidate.provider,
+      model: candidate.model,
+      ...(cause === undefined ? {} : { providerError: cause }),
     },
   });
 }
@@ -140,19 +206,43 @@ function isProviderRateLimitError(error: unknown) {
   );
 }
 
-function getProviderApiKey(provider: OpenAiCompatibleProvider) {
-  const env = getAiEnv();
-
-  switch (provider) {
-    case "mistral":
-      return env.MISTRAL_API_KEY;
-    case "groq":
-      return env.GROQ_API_KEY;
-    case "openrouter":
-      return env.OPENROUTER_API_KEY;
-    case "cerebras":
-      return env.CEREBRAS_API_KEY;
+function isRecoverableProviderFailure(error: unknown): error is AppError {
+  if (!isAppError(error)) {
+    return false;
   }
+
+  return (
+    error.code === "LLM_EMPTY_RESPONSE" ||
+    error.code === "LLM_INVALID_RESPONSE" ||
+    error.code === "LLM_PROVIDER_NOT_CONFIGURED" ||
+    error.code === "LLM_REQUEST_FAILED" ||
+    error.code === "LLM_TIMEOUT"
+  );
+}
+
+function getProviderRateLimitRetryAfterSeconds(error: unknown) {
+  if (!isAppError(error) || error.code !== "LLM_PROVIDER_RATE_LIMITED") {
+    return null;
+  }
+
+  const cause = error.cause;
+
+  if (typeof cause !== "object" || cause === null || !("rateLimit" in cause)) {
+    return null;
+  }
+
+  const rateLimit = (cause as { rateLimit?: RateLimitTelemetry }).rateLimit;
+
+  if (!rateLimit) {
+    return null;
+  }
+
+  return (
+    rateLimit.retryAfterSeconds ??
+    rateLimit.requestResetSeconds ??
+    rateLimit.tokenResetSeconds ??
+    rateLimit.resetSeconds
+  );
 }
 
 function getOpenAiCompatibleMessageText(content: unknown) {
@@ -181,24 +271,90 @@ function getOpenAiCompatibleMessageText(content: unknown) {
     .trim();
 }
 
-function isOpenAiCompatibleRateLimitResponse(status: number, body: unknown) {
-  if (status === 429) {
-    return true;
+function validateProviderJsonText(candidate: LlmModelCandidate, text: string) {
+  if (!text.trim()) {
+    throw createProviderResponseError(candidate, "LLM_EMPTY_RESPONSE");
   }
 
-  const parsedError = OPENAI_COMPATIBLE_ERROR_SCHEMA.safeParse(body);
-
-  if (!parsedError.success) {
-    return false;
+  try {
+    JSON.parse(text);
+  } catch {
+    throw createProviderResponseError(candidate, "LLM_INVALID_RESPONSE", {
+      reason: "invalid_json",
+    });
   }
 
-  return LLM_RATE_LIMIT_MESSAGE_PATTERN.test(
-    `${parsedError.data.error?.type ?? ""} ${parsedError.data.error?.message ?? ""}`,
-  );
+  return text;
 }
 
 function toHttpStatus(status: unknown) {
   return typeof status === "number" ? status : null;
+}
+
+function getProviderErrorMetadata(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return {
+      headers: undefined as ProviderSdkHeaders,
+      status: null as number | null,
+    };
+  }
+
+  const { headers, response, status, statusCode } = error as ErrorWithStatus;
+
+  const responseStatus =
+    typeof response === "object" && response !== null
+      ? (response.status ?? response.statusCode)
+      : undefined;
+
+  return {
+    headers:
+      typeof response === "object" && response !== null
+        ? (response.headers ?? headers)
+        : headers,
+    status:
+      typeof response === "object" && response !== null
+        ? toHttpStatus(responseStatus ?? status ?? statusCode)
+        : toHttpStatus(status ?? statusCode),
+  };
+}
+
+function getProviderErrorSummary(error: unknown) {
+  if (typeof error !== "object" || error === null) {
+    return undefined;
+  }
+
+  const { code, name, type } = error as ErrorWithStatus;
+
+  return {
+    code: code === undefined ? undefined : String(code),
+    type:
+      typeof type === "string"
+        ? type
+        : typeof name === "string"
+          ? name
+          : undefined,
+  };
+}
+
+function isProviderSdkRateLimitError(error: unknown) {
+  const { status } = getProviderErrorMetadata(error);
+
+  if (status === 429) {
+    return true;
+  }
+
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const { code, message, name, type } = error as ErrorWithStatus;
+
+  return (
+    name === "RateLimitError" ||
+    LLM_RATE_LIMIT_MESSAGE_PATTERN.test(
+      `${String(code ?? "")} ${typeof type === "string" ? type : ""} ${typeof name === "string" ? name : ""} ${typeof message === "string" ? message : ""}`,
+    )
+  );
 }
 
 function logLlmProviderRequestTelemetry(
@@ -206,7 +362,7 @@ function logLlmProviderRequestTelemetry(
   transport: "fetch" | "sdk",
   operation: "chatCompletions" | "generateContent",
   httpStatus: number | null,
-  headers?: ProviderHeaders,
+  headers?: ProviderSdkHeaders,
 ) {
   logger.info("LLM provider request telemetry", {
     provider: candidate.provider,
@@ -217,6 +373,20 @@ function logLlmProviderRequestTelemetry(
     responseReceived: httpStatus !== null,
     rateLimit: createRateLimitTelemetry(headers, httpStatus ?? undefined),
   });
+}
+
+function getRemainingCandidateAvailability(
+  candidates: readonly LlmModelCandidate[],
+  attemptedCandidates: ReadonlySet<string>,
+) {
+  const executionOrder = getLlmCandidateExecutionOrder(candidates);
+
+  return {
+    blockedProviders: executionOrder.blockedProviders,
+    remainingCandidates: executionOrder.candidates.filter(
+      (entry) => !attemptedCandidates.has(getLlmCandidateKey(entry)),
+    ).length,
+  };
 }
 
 async function generateWithGemini(
@@ -251,16 +421,28 @@ async function generateWithGemini(
     );
   } catch (error) {
     const { headers, status } = error as ErrorWithStatus;
+    const httpStatus = toHttpStatus(status);
 
     logLlmProviderRequestTelemetry(
       candidate,
       "sdk",
       "generateContent",
-      toHttpStatus(status),
+      httpStatus,
       headers,
     );
 
-    throw error;
+    if (isGeminiRateLimitError(error)) {
+      throw createProviderRateLimitError(candidate, {
+        headers,
+        status: httpStatus,
+      });
+    }
+
+    if (isAppError(error) && error.code === "LLM_TIMEOUT") {
+      throw error;
+    }
+
+    throw createProviderRequestFailedError(candidate, error);
   }
 
   logLlmProviderRequestTelemetry(
@@ -271,123 +453,75 @@ async function generateWithGemini(
     response.sdkHttpResponse?.headers,
   );
 
-  return response.text ?? "";
+  return validateProviderJsonText(candidate, response.text ?? "");
 }
 
-async function generateWithOpenAiCompatibleProvider(
+async function generateWithProviderSdk(
   candidate: LlmModelCandidate,
   request: StructuredRecipePromptRequest,
   timeoutMs: number,
 ) {
   const provider = candidate.provider as OpenAiCompatibleProvider;
-  const apiKey = getProviderApiKey(provider);
-
-  if (!apiKey) {
-    throw new AppError({
-      code: "LLM_PROVIDER_NOT_CONFIGURED",
-      message: "Recipe extraction failed",
-      statusCode: 500,
-      cause: { provider },
-    });
-  }
-
-  let response: Response;
+  const executeProviderRequest = PROVIDER_SDK_EXECUTORS[provider];
+  let response: ProviderSdkResponse;
 
   try {
     response = await withTimeout(
-      fetch(OPENAI_COMPATIBLE_ENDPOINTS[provider], {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: candidate.model,
-          messages: [
-            {
-              role: "system",
-              content: request.instructionText,
-            },
-            {
-              role: "user",
-              content: buildUserPrompt(request.userPromptSections),
-            },
-          ],
-          temperature: 0.1,
-        }),
+      executeProviderRequest({
+        model: candidate.model,
+        messages: [
+          {
+            role: "system",
+            content: request.instructionText,
+          },
+          {
+            role: "user",
+            content: buildUserPrompt(request.userPromptSections),
+          },
+        ],
+        temperature: 0.1,
       }),
       timeoutMs,
       createLlmTimeoutError(),
     );
   } catch (error) {
-    const { headers, status } = error as ErrorWithStatus;
+    const { headers, status } = getProviderErrorMetadata(error);
 
     logLlmProviderRequestTelemetry(
       candidate,
-      "fetch",
+      "sdk",
       "chatCompletions",
-      toHttpStatus(status),
+      status,
       headers,
     );
 
-    throw error;
+    if (isProviderSdkRateLimitError(error)) {
+      throw createProviderRateLimitError(candidate, {
+        headers,
+        status,
+      });
+    }
+
+    if (isAppError(error) && error.code === "LLM_TIMEOUT") {
+      throw error;
+    }
+
+    throw createProviderRequestFailedError(candidate, error);
   }
 
   logLlmProviderRequestTelemetry(
     candidate,
-    "fetch",
+    "sdk",
     "chatCompletions",
-    response.status,
+    response.httpStatus,
     response.headers,
   );
 
-  const rawBody = await response.text();
-  let parsedBody: unknown = undefined;
-
-  if (rawBody.trim()) {
-    try {
-      parsedBody = JSON.parse(rawBody);
-    } catch (error) {
-      throw new AppError({
-        code: "LLM_INVALID_RESPONSE",
-        message: "Recipe extraction failed",
-        statusCode: 502,
-        cause: {
-          provider,
-          model: candidate.model,
-          error,
-        },
-      });
-    }
-  }
-
-  if (isOpenAiCompatibleRateLimitResponse(response.status, parsedBody)) {
-    throw createProviderRateLimitError(candidate, {
-      provider,
-      status: response.status,
-      body: parsedBody,
-    });
-  }
-
-  if (!response.ok) {
-    throw new AppError({
-      code: "LLM_REQUEST_FAILED",
-      message: "Recipe extraction failed",
-      statusCode: 502,
-      cause: {
-        provider,
-        model: candidate.model,
-        status: response.status,
-        body: parsedBody,
-      },
-    });
-  }
-
-  let data: z.infer<typeof OPENAI_COMPATIBLE_RESPONSE_SCHEMA>;
+  let data: z.infer<typeof CHAT_COMPLETION_RESPONSE_SCHEMA>;
 
   try {
-    data = OPENAI_COMPATIBLE_RESPONSE_SCHEMA.parse(parsedBody);
-  } catch (error) {
+    data = CHAT_COMPLETION_RESPONSE_SCHEMA.parse(response.result);
+  } catch {
     throw new AppError({
       code: "LLM_INVALID_RESPONSE",
       message: "Recipe extraction failed",
@@ -395,88 +529,109 @@ async function generateWithOpenAiCompatibleProvider(
       cause: {
         provider,
         model: candidate.model,
-        error,
+        reason: "invalid_chat_completion_response",
       },
     });
   }
 
   const text = getOpenAiCompatibleMessageText(data.choices[0]?.message.content);
 
-  if (!text.trim()) {
-    throw new AppError({
-      code: "LLM_EMPTY_RESPONSE",
-      message: "Recipe extraction failed",
-      statusCode: 502,
-      cause: {
-        provider,
-        model: candidate.model,
-      },
-    });
-  }
-
-  return text;
+  return validateProviderJsonText(candidate, text);
 }
 
 async function generateStructuredRecipeResponseText(
   request: StructuredRecipePromptRequest,
 ) {
   const { GEMINI_TIMEOUT_MS, LLM_MODEL_CANDIDATES } = getAiEnv();
+  const attemptedCandidates = new Set<string>();
+  let lastRecoverableError: AppError | null = null;
 
-  for (let index = 0; index < LLM_MODEL_CANDIDATES.length; index += 1) {
-    const candidate = LLM_MODEL_CANDIDATES[index];
+  while (attemptedCandidates.size < LLM_MODEL_CANDIDATES.length) {
+    const executionOrder = getLlmCandidateExecutionOrder(LLM_MODEL_CANDIDATES);
+    const candidate = executionOrder.candidates.find(
+      (entry) => !attemptedCandidates.has(getLlmCandidateKey(entry)),
+    );
+
+    if (!candidate) {
+      throw createLlmProvidersRateLimitedError(executionOrder.blockedProviders);
+    }
+
+    attemptedCandidates.add(getLlmCandidateKey(candidate));
 
     try {
-      if (candidate.provider === "gemini") {
-        return await generateWithGemini(candidate, request, GEMINI_TIMEOUT_MS);
+      const responseText =
+        candidate.provider === "gemini"
+          ? await generateWithGemini(candidate, request, GEMINI_TIMEOUT_MS)
+          : await generateWithProviderSdk(
+              candidate,
+              request,
+              GEMINI_TIMEOUT_MS,
+            );
+
+      markLlmCandidateSuccess(LLM_MODEL_CANDIDATES, candidate);
+
+      return responseText;
+    } catch (error) {
+      if (isProviderRateLimitError(error)) {
+        const retryAfterSeconds = getProviderRateLimitRetryAfterSeconds(error);
+
+        markLlmProviderRateLimited(
+          LLM_MODEL_CANDIDATES,
+          candidate,
+          retryAfterSeconds,
+        );
+
+        const nextCandidateAvailability = getRemainingCandidateAvailability(
+          LLM_MODEL_CANDIDATES,
+          attemptedCandidates,
+        );
+
+        logger.warn("LLM candidate rate limited", {
+          provider: candidate.provider,
+          model: candidate.model,
+          remainingCandidates: nextCandidateAvailability.remainingCandidates,
+          retryAfterSeconds,
+        });
+
+        if (nextCandidateAvailability.remainingCandidates > 0) {
+          continue;
+        }
+
+        if (lastRecoverableError) {
+          throw lastRecoverableError;
+        }
+
+        throw createLlmProvidersRateLimitedError(
+          nextCandidateAvailability.blockedProviders,
+        );
       }
 
-      return await generateWithOpenAiCompatibleProvider(
-        candidate,
-        request,
-        GEMINI_TIMEOUT_MS,
-      );
-    } catch (error) {
-      if (!isProviderRateLimitError(error)) {
+      if (!isRecoverableProviderFailure(error)) {
         throw error;
       }
 
-      logger.warn("LLM candidate rate limited", {
-        provider: candidate.provider,
-        model: candidate.model,
-        remainingCandidates: LLM_MODEL_CANDIDATES.length - (index + 1),
-      });
+      lastRecoverableError = error;
 
-      if (index < LLM_MODEL_CANDIDATES.length - 1) {
+      const nextCandidateAvailability = getRemainingCandidateAvailability(
+        LLM_MODEL_CANDIDATES,
+        attemptedCandidates,
+      );
+
+      if (nextCandidateAvailability.remainingCandidates > 0) {
         continue;
       }
 
-      if (isAppError(error) && error.code === "LLM_PROVIDER_RATE_LIMITED") {
-        throw error;
-      }
-
-      const { message, status } = error as ErrorWithStatus;
-
-      throw new AppError({
-        code: "LLM_PROVIDER_RATE_LIMITED",
-        message:
-          "Recipe extraction is temporarily rate limited. Please try again later.",
-        statusCode: 503,
-        cause: {
-          provider: candidate.provider,
-          model: candidate.model,
-          status,
-          message,
-        },
-      });
+      throw lastRecoverableError;
     }
   }
 
-  throw new AppError({
-    code: "LLM_PROVIDER_RATE_LIMITED",
-    message:
-      "Recipe extraction is temporarily rate limited. Please try again later.",
-    statusCode: 503,
-  });
+  if (lastRecoverableError) {
+    throw lastRecoverableError;
+  }
+
+  throw createLlmProvidersRateLimitedError(
+    getLlmCandidateExecutionOrder(LLM_MODEL_CANDIDATES).blockedProviders,
+  );
 }
 
 export async function generateStructuredRecipeJsonText(

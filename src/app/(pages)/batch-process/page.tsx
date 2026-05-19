@@ -1,7 +1,7 @@
 "use client";
 
 import { MAX_RECIPES_PER_LLM_BATCH } from "@/schemas/recipeBatchSchema";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import shellStyles from "../page-shell.module.css";
 import styles from "./page.module.css";
 
@@ -50,6 +50,292 @@ function clampSelectedLimit(limit: number, maxProcessLimit: number) {
   return Math.min(Math.max(limit, 1), maxProcessLimit);
 }
 
+export { clampSelectedLimit };
+
+export function formatRecipeGroupCount(count: number) {
+  return `${count} recipe group${count === 1 ? "" : "s"}`;
+}
+
+export function getSelectableLimits(maxProcessLimit: number) {
+  return Array.from(
+    { length: Math.max(maxProcessLimit, 0) },
+    (_, index) => index + 1,
+  );
+}
+
+export function getLimitTriggerLabel({
+  loadingSummary,
+  maxProcessLimit,
+  selectedLimit,
+}: {
+  loadingSummary: boolean;
+  maxProcessLimit: number;
+  selectedLimit: number;
+}) {
+  if (loadingSummary) {
+    return "Loading limits...";
+  }
+
+  if (maxProcessLimit <= 0) {
+    return "0 recipe groups";
+  }
+
+  return formatRecipeGroupCount(
+    clampSelectedLimit(selectedLimit, maxProcessLimit),
+  );
+}
+
+interface BatchLimitSelectProps {
+  disabled: boolean;
+  hintId: string;
+  labelId: string;
+  loadingSummary: boolean;
+  maxProcessLimit: number;
+  selectedLimit: number;
+  onSelect: (limit: number) => void;
+}
+
+function BatchLimitSelect({
+  disabled,
+  hintId,
+  labelId,
+  loadingSummary,
+  maxProcessLimit,
+  selectedLimit,
+  onSelect,
+}: BatchLimitSelectProps) {
+  const triggerId = useId();
+  const triggerValueId = useId();
+  const listboxId = useId();
+  const selectorRef = useRef<HTMLDivElement | null>(null);
+  const triggerRef = useRef<HTMLButtonElement | null>(null);
+  const optionRefs = useRef<Record<number, HTMLLIElement | null>>({});
+  const [isOpen, setIsOpen] = useState(false);
+  const [activeLimit, setActiveLimit] = useState<number | null>(null);
+
+  const selectableLimits = getSelectableLimits(maxProcessLimit);
+  const effectiveSelectedLimit = clampSelectedLimit(
+    selectedLimit,
+    maxProcessLimit,
+  );
+  const isMenuOpen = isOpen && !disabled && selectableLimits.length > 0;
+
+  function closeLimitMenu(restoreFocus = false) {
+    setIsOpen(false);
+    setActiveLimit(null);
+
+    if (restoreFocus) {
+      triggerRef.current?.focus();
+    }
+  }
+
+  function openLimitMenu(nextActiveLimit = effectiveSelectedLimit) {
+    if (disabled || selectableLimits.length === 0) {
+      return;
+    }
+
+    setIsOpen(true);
+    setActiveLimit(
+      selectableLimits.includes(nextActiveLimit)
+        ? nextActiveLimit
+        : effectiveSelectedLimit,
+    );
+  }
+
+  function moveActiveLimit(currentLimit: number, direction: 1 | -1) {
+    const currentIndex = selectableLimits.indexOf(currentLimit);
+
+    if (currentIndex === -1) {
+      return;
+    }
+
+    const nextIndex = Math.min(
+      Math.max(currentIndex + direction, 0),
+      selectableLimits.length - 1,
+    );
+
+    setActiveLimit(selectableLimits[nextIndex] ?? currentLimit);
+  }
+
+  function handleLimitSelection(limitOption: number) {
+    onSelect(limitOption);
+    closeLimitMenu(true);
+  }
+
+  useEffect(() => {
+    if (!isMenuOpen) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent) {
+      if (selectorRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      closeLimitMenu();
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [isMenuOpen]);
+
+  useEffect(() => {
+    if (!isMenuOpen || activeLimit === null) {
+      return;
+    }
+
+    optionRefs.current[activeLimit]?.focus();
+  }, [activeLimit, isMenuOpen]);
+
+  return (
+    <div className={styles.limitSelector} ref={selectorRef}>
+      <button
+        id={triggerId}
+        ref={triggerRef}
+        type="button"
+        disabled={disabled}
+        aria-controls={isMenuOpen ? listboxId : undefined}
+        aria-describedby={hintId}
+        aria-expanded={isMenuOpen}
+        aria-haspopup="listbox"
+        aria-labelledby={`${labelId} ${triggerValueId}`}
+        className={`${styles.limitSelect} ${styles.limitSelectTrigger} ${
+          isMenuOpen ? styles.limitSelectTriggerOpen : ""
+        }`}
+        onClick={() => {
+          if (isMenuOpen) {
+            closeLimitMenu();
+            return;
+          }
+
+          openLimitMenu();
+        }}
+        onKeyDown={(event) => {
+          if (
+            event.key === "ArrowDown" ||
+            event.key === "ArrowUp" ||
+            event.key === "Enter" ||
+            event.key === " "
+          ) {
+            event.preventDefault();
+            openLimitMenu();
+          }
+        }}
+      >
+        <span className={styles.limitSelectContent}>
+          <span id={triggerValueId} className={styles.limitSelectValue}>
+            {getLimitTriggerLabel({
+              loadingSummary,
+              maxProcessLimit,
+              selectedLimit,
+            })}
+          </span>
+          <span className={styles.limitSelectMeta}>
+            {loadingSummary
+              ? "Checking queued recipe groups before enabling extraction."
+              : selectableLimits.length > 0
+                ? `Choose how many groups to send through extraction, up to ${MAX_RECIPES_PER_LLM_BATCH} per run.`
+                : "No queued recipe groups are available for this prefix."}
+          </span>
+        </span>
+        <span className={styles.limitSelectChevron} aria-hidden="true" />
+      </button>
+
+      {isMenuOpen && (
+        <ul
+          id={listboxId}
+          aria-labelledby={labelId}
+          className={styles.limitOptions}
+          role="listbox"
+        >
+          {selectableLimits.map((limitOption) => {
+            const isActive = activeLimit === limitOption;
+            const isSelected = effectiveSelectedLimit === limitOption;
+
+            return (
+              <li
+                key={limitOption}
+                id={`${listboxId}-option-${limitOption}`}
+                ref={(node) => {
+                  optionRefs.current[limitOption] = node;
+                }}
+                aria-selected={isSelected}
+                className={`${styles.limitOption} ${
+                  isActive ? styles.limitOptionActive : ""
+                } ${isSelected ? styles.limitOptionSelected : ""}`}
+                role="option"
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => {
+                  handleLimitSelection(limitOption);
+                }}
+                onKeyDown={(event) => {
+                  if (event.key === "ArrowDown") {
+                    event.preventDefault();
+                    moveActiveLimit(limitOption, 1);
+                    return;
+                  }
+
+                  if (event.key === "ArrowUp") {
+                    event.preventDefault();
+                    moveActiveLimit(limitOption, -1);
+                    return;
+                  }
+
+                  if (event.key === "Home") {
+                    event.preventDefault();
+                    setActiveLimit(selectableLimits[0] ?? limitOption);
+                    return;
+                  }
+
+                  if (event.key === "End") {
+                    event.preventDefault();
+                    setActiveLimit(
+                      selectableLimits[selectableLimits.length - 1] ??
+                        limitOption,
+                    );
+                    return;
+                  }
+
+                  if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    handleLimitSelection(limitOption);
+                    return;
+                  }
+
+                  if (event.key === "Escape") {
+                    event.preventDefault();
+                    closeLimitMenu(true);
+                    return;
+                  }
+
+                  if (event.key === "Tab") {
+                    closeLimitMenu();
+                  }
+                }}
+                onMouseEnter={() => {
+                  setActiveLimit(limitOption);
+                }}
+              >
+                <span className={styles.limitOptionValue}>
+                  {formatRecipeGroupCount(limitOption)}
+                </span>
+                <span className={styles.limitOptionLabel}>
+                  {limitOption === 1
+                    ? "Run a focused extraction for a single recipe group."
+                    : `Process ${limitOption} recipe groups in this extraction run.`}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export default function BatchProcessPage() {
   const [s3Prefix, setS3Prefix] = useState("images/un-processed/");
   const [processing, setProcessing] = useState(false);
@@ -62,6 +348,8 @@ export default function BatchProcessPage() {
   const [maxProcessLimit, setMaxProcessLimit] = useState(0);
   const [selectedLimit, setSelectedLimit] = useState(MAX_RECIPES_PER_LLM_BATCH);
   const [error, setError] = useState<string | null>(null);
+  const limitLabelId = useId();
+  const limitHintId = useId();
 
   async function loadSummary(prefix: string) {
     setLoadingSummary(true);
@@ -212,10 +500,12 @@ export default function BatchProcessPage() {
 
   const successCount = results.filter((r) => r.status === "success").length;
   const errorCount = results.filter((r) => r.status === "error").length;
-  const selectableLimits = Array.from(
-    { length: maxProcessLimit },
-    (_, index) => index + 1,
+  const effectiveSelectedLimit = clampSelectedLimit(
+    selectedLimit,
+    maxProcessLimit,
   );
+  const isLimitSelectionDisabled =
+    processing || loadingSummary || pendingRecipeCount === 0;
 
   return (
     <main className={shellStyles.main}>
@@ -256,48 +546,23 @@ export default function BatchProcessPage() {
       </div>
 
       <div className={styles.panel}>
-        <div className={styles.fieldGroup}>
-          <label className={styles.fieldLabel}>
-            S3 Prefix (Directory Path)
-          </label>
-          <input
-            type="text"
-            value={s3Prefix}
-            onChange={(e) => setS3Prefix(e.target.value)}
-            placeholder="images/un-processed/"
-            disabled={processing}
-            className={styles.prefixInput}
-          />
-          <p className={styles.hint}>
-            Examples: images/un-processed/, images/, or leave empty for root
-            directory. Each recipe group may contain multiple photos.
-          </p>
-        </div>
 
         <div className={styles.controlRow}>
           <div className={styles.fieldGroup}>
-            <label className={styles.fieldLabel}>Recipes To Extract</label>
-            <select
-              value={clampSelectedLimit(selectedLimit, maxProcessLimit)}
-              onChange={(event) => {
-                setSelectedLimit(Number(event.target.value));
-              }}
-              disabled={
-                processing || loadingSummary || pendingRecipeCount === 0
-              }
-              className={styles.limitSelect}
-            >
-              {selectableLimits.length > 0 ? (
-                selectableLimits.map((limitOption) => (
-                  <option key={limitOption} value={limitOption}>
-                    {limitOption}
-                  </option>
-                ))
-              ) : (
-                <option value={1}>0</option>
-              )}
-            </select>
-            <p className={styles.hint}>
+            <div className={styles.fieldLabel} id={limitLabelId}>
+              Recipes To Extract
+            </div>
+            <BatchLimitSelect
+              key={`limit-select-${maxProcessLimit}-${isLimitSelectionDisabled ? "disabled" : "enabled"}`}
+              disabled={isLimitSelectionDisabled}
+              hintId={limitHintId}
+              labelId={limitLabelId}
+              loadingSummary={loadingSummary}
+              maxProcessLimit={maxProcessLimit}
+              selectedLimit={selectedLimit}
+              onSelect={setSelectedLimit}
+            />
+            <p className={styles.hint} id={limitHintId}>
               Extract up to {MAX_RECIPES_PER_LLM_BATCH} recipe groups per run.
             </p>
           </div>
@@ -316,7 +581,7 @@ export default function BatchProcessPage() {
 
         <button
           onClick={handleBatchProcess}
-          disabled={processing || loadingSummary || pendingRecipeCount === 0}
+          disabled={isLimitSelectionDisabled}
           className={`${styles.submitButton} ${
             processing || pendingRecipeCount === 0
               ? styles.submitButtonDisabled
@@ -324,18 +589,13 @@ export default function BatchProcessPage() {
           }`}
         >
           {processing
-            ? `Processing ${totalFiles || clampSelectedLimit(selectedLimit, maxProcessLimit)} recipe group${
-                (totalFiles ||
-                  clampSelectedLimit(selectedLimit, maxProcessLimit)) === 1
-                  ? ""
-                  : "s"
+            ? `Processing ${totalFiles || effectiveSelectedLimit} recipe group${
+                (totalFiles || effectiveSelectedLimit) === 1 ? "" : "s"
               }...`
             : pendingRecipeCount === 0
               ? "No Recipe Groups Ready"
-              : `Extract ${clampSelectedLimit(selectedLimit, maxProcessLimit)} Recipe Group${
-                  clampSelectedLimit(selectedLimit, maxProcessLimit) === 1
-                    ? ""
-                    : "s"
+              : `Extract ${effectiveSelectedLimit} Recipe Group${
+                  effectiveSelectedLimit === 1 ? "" : "s"
                 }`}
         </button>
 

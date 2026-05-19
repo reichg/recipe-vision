@@ -113,9 +113,6 @@ export default function HomePage() {
               <Link href="/batch-process" className={styles.utilityLink}>
                 Run Batch Extraction
               </Link>
-              <Link href="/view-image" className={styles.utilityLink}>
-                Inspect Source Images
-              </Link>
             </div>
           </div>
         </div>

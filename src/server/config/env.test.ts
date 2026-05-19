@@ -141,4 +141,38 @@ describe("env", () => {
       }
     }
   });
+
+  it("allows non-Gemini provider rosters when other providers are configured", () => {
+    expect(
+      parseAiEnv({
+        NODE_ENV: "test",
+        GROQ_API_KEY: "groq-key",
+        GROQ_MODELS: "llama-3.3-70b-versatile",
+        OCRSPACE_API_KEY: "ocr-key",
+      }).LLM_MODEL_CANDIDATES,
+    ).toEqual([
+      {
+        provider: "groq",
+        model: "llama-3.3-70b-versatile",
+      },
+    ]);
+  });
+
+  it("throws an app error when no LLM providers are configured", () => {
+    try {
+      parseAiEnv({
+        NODE_ENV: "test",
+        OCRSPACE_API_KEY: "ocr-key",
+      });
+      throw new Error("Expected parseAiEnv to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(AppError);
+
+      if (error instanceof AppError) {
+        expect(error.code).toBe("AI_ENV_INVALID");
+        expect(error.statusCode).toBe(500);
+        expect(error.message).toBe("Service is not configured");
+      }
+    }
+  });
 });
