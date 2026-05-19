@@ -1,6 +1,7 @@
 import { GoogleGenAI } from "@google/genai";
 
 import { getAiEnv } from "@/server/config/env";
+import { AppError } from "@/server/shared/errors";
 
 let cachedClient: GoogleGenAI | undefined;
 const GEMINI_RATE_LIMIT_MESSAGE_PATTERN =
@@ -14,6 +15,17 @@ type ErrorWithStatus = {
 
 export function getGeminiClient() {
   const { GEMINI_API_KEY } = getAiEnv();
+
+  if (!GEMINI_API_KEY) {
+    throw new AppError({
+      code: "LLM_PROVIDER_NOT_CONFIGURED",
+      message: "Recipe extraction failed",
+      statusCode: 500,
+      cause: {
+        provider: "gemini",
+      },
+    });
+  }
 
   cachedClient ??= new GoogleGenAI({ apiKey: GEMINI_API_KEY });
 

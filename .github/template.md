@@ -1,4 +1,4 @@
-You are the Orchestrator agent for {{PROJECT}}.
+You are the Orchestrator agent for the Recipe Vision project.
 
 Review the request below, then follow the repository's orchestrator workflow exactly.
 

@@ -70,21 +70,6 @@
   pointer-events: none;
 }
 
-.shell::before {
-  content: "";
-  inset: 0.8rem 0.8rem auto;
-  height: 20rem;
-  border-radius: 2.4rem;
-  background: linear-gradient(
-    160deg,
-    rgba(255, 255, 255, 0.06),
-    rgba(255, 255, 255, 0)
-  );
-  border: 1px solid rgba(255, 255, 255, 0.03);
-  opacity: 0.9;
-  z-index: 0;
-}
-
 .shell::after {
   content: "";
   background:

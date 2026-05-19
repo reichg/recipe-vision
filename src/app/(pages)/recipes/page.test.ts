@@ -21,7 +21,7 @@ describe("recipes page", () => {
 
     expect(markup).toContain("Search recipes");
     expect(markup).toContain(
-      "Search by title or ingredient. Results update as you type.",
+      "Search across titles, ingredients, tags, and instructions. Results update as you type.",
     );
     expect(markup).toContain('type="search"');
     expect(markup).not.toContain('type="submit"');
@@ -136,7 +136,7 @@ describe("recipes page", () => {
   it("returns query-specific empty-state copy", () => {
     expect(getNoRecipesMessage("")).toBe("No recipes found.");
     expect(getNoRecipesMessage("garlic")).toBe(
-      'No recipes match "garlic". Try a different title or ingredient.',
+      'No recipes match "garlic". Try a different search term.',
     );
   });
 });

@@ -48,6 +48,15 @@ type RecipeCountRecord = {
   total: number;
 };
 
+const RECIPE_LIST_ORDER_BY = [
+  { title: "asc" as const },
+  { id: "asc" as const },
+];
+
+const RECIPE_LIST_ORDER_BY_SQL = Prisma.sql`
+  ORDER BY r."title" ASC, r."id" ASC
+`;
+
 function escapeLikePattern(value: string) {
   return value.replace(/[\\%_]/g, "\\$&");
 }
@@ -82,6 +91,28 @@ function buildRecipeSearchWhere(searchPattern: string) {
           COALESCE(ingredient->>'name', '') ILIKE ${searchPattern} ESCAPE '\\'
           OR COALESCE(ingredient->>'notes', '') ILIKE ${searchPattern} ESCAPE '\\'
         )
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements_text(
+          CASE
+            WHEN jsonb_typeof(r."json"->'tags') = 'array'
+              THEN r."json"->'tags'
+            ELSE '[]'::jsonb
+          END
+        ) AS tag(tag_value)
+        WHERE tag.tag_value ILIKE ${searchPattern} ESCAPE '\\'
+      )
+      OR EXISTS (
+        SELECT 1
+        FROM jsonb_array_elements_text(
+          CASE
+            WHEN jsonb_typeof(r."json"->'steps') = 'array'
+              THEN r."json"->'steps'
+            ELSE '[]'::jsonb
+          END
+        ) AS step(step_value)
+        WHERE step.step_value ILIKE ${searchPattern} ESCAPE '\\'
       )
     )
   `;
@@ -129,7 +160,7 @@ export async function listRecipes({ page, limit, query }: ListRecipesOptions) {
         SELECT r."id", r."title", r."createdAt", r."json"
         FROM "Recipe" r
         ${searchWhere}
-        ORDER BY r."createdAt" DESC
+        ${RECIPE_LIST_ORDER_BY_SQL}
         OFFSET ${skip}
         LIMIT ${limit}
       `),
@@ -150,7 +181,7 @@ export async function listRecipes({ page, limit, query }: ListRecipesOptions) {
 
   const [recipes, total] = await Promise.all([
     prisma.recipe.findMany({
-      orderBy: { createdAt: "desc" },
+      orderBy: RECIPE_LIST_ORDER_BY,
       skip,
       take: limit,
       select: { id: true, title: true, createdAt: true, json: true },
