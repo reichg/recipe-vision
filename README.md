@@ -1,549 +1,355 @@
-# 🍳 Recipe Vision Parser
+# Recipe Vision Parser
 
-A modern web application that transforms recipe photos into structured, searchable recipe data using AI vision models and optical character recognition.
+Recipe Vision Parser turns recipe photos into structured recipes you can search, review, and keep. The current product flow is grouped upload to S3, batch extraction with OCR and an env-driven LLM roster, PostgreSQL persistence through Prisma, and a web UI for browsing saved recipes.
 
-## ✨ Features
+This README is the root guide for local setup, day-to-day development, and the current application surface. It focuses on what exists in this repository today.
 
-- **📸 Image-to-Recipe Conversion** - Upload single or multiple recipe photos and automatically extract structured recipe data
-- **🤖 AI-Powered Parsing** - Uses env-driven LLM rotation across Gemini, Mistral, Groq, OpenRouter, and Cerebras for recipe extraction
-- **📖 OCR Technology** - Leverages OCR.Space for accurate text extraction from images
-- **☁️ S3 Integration** - Upload images to AWS S3 for cloud storage
-  - Multi-file upload support
-  - S3 URI parsing for direct image viewing
-  - Automatic file organization (un-processed → processed directories)
-- **⚡ Batch Processing** - Process multiple S3 images at once with real-time progress tracking
-- **💾 Recipe Management** - Save, browse, and organize parsed recipes
-  - Paginated recipe list (24 recipes per page)
-  - Compact card grid view optimized for displaying more recipes
-  - Select and delete recipes (single or batch deletion)
-- **🎯 Structured Data** - Automatically extracts:
-  - Recipe title and description
-  - Ingredients with quantities and units
-  - Step-by-step instructions
-  - Cooking times (prep, cook, total)
-  - Servings information
-  - Tags and allergens
-- **🔍 Recipe Details** - View complete recipe information on dedicated detail pages
-- **📱 Mobile-Friendly** - Fully responsive design that works beautifully on all devices
-  - Dynamic font sizing with CSS clamp
-  - Responsive grid layouts
-  - Horizontally scrollable navigation
-  - Touch-optimized controls
-- **🏥 Health Monitoring** - Database health check endpoint and UI
-- **🎨 Beautiful UI** - Modern, responsive design with warm aesthetic and elegant interactions
+## What The App Does
 
-## 🏗️ Architecture
+- Queue one or more images per recipe on `/upload`
+- Store grouped source images in AWS S3
+- Run OCR and structured extraction from `/batch-process`
+- Save parsed recipes in PostgreSQL through Prisma
+- Browse, search, inspect, and delete saved recipes from `/recipes`
 
-### Tech Stack
+## Current Workflow
 
-- **Frontend**: Next.js 16 with React 19, TypeScript
-- **Backend**: Thin Next.js App Router API routes with server services
-- **Database**: PostgreSQL with Prisma ORM
-- **Cloud Storage**: AWS S3
-- **AI/ML**: Env-driven LLM rotation across Gemini, Mistral, Groq, OpenRouter, and Cerebras
-- **OCR**: OCR.Space API
-- **Validation**: Zod schema validation
-- **Styling**: Centralized TypeScript style modules
+1. Upload grouped recipe photos from the Upload page.
+2. Start a batch extraction run from the Batch Process page.
+3. The app reads source images from S3, runs OCR, sends the text through the configured LLM candidates, and persists structured recipes.
+4. Review results from the Recipes list and recipe detail pages.
 
-Route handlers under `src/app/api` only parse requests, validate edge inputs, and map responses. Business logic, provider integrations, and database access live under `src/server`, while shared browser/server utilities live under `src/lib` and `src/schemas`.
-
-### Project Structure
-
-```
-src/app/
-├── (pages)/
-│   ├── page.tsx               # Home page
-│   ├── upload/
-│   │   └── page.tsx           # Upload page - single/multi-file upload to S3
-│   ├── recipes/
-│   │   ├── page.tsx           # Recipes list page with pagination & deletion
-│   │   └── [id]/
-│   │       └── page.tsx       # Recipe detail page
-│   ├── batch-process/
-│   │   └── page.tsx           # Batch processing page for S3 images
-│   ├── view-image/
-│   │   └── page.tsx           # S3 image viewer with URI parsing
-│   └── health/
-│       └── page.tsx           # Database health check page
-├── api/
-│   ├── health/
-│   │   └── route.ts           # GET - health check endpoint
-│   ├── recipes/
-│   │   ├── route.ts           # GET - list recipes (paginated)
-│   │   │                      # POST - parse image & save recipe
-│   │   │                      # DELETE - batch delete recipes
-│   │   └── [id]/
-│   │       └── route.ts       # GET - fetch individual recipe
-│   │                          # DELETE - delete single recipe
-│   ├── upload/
-│   │   └── route.ts           # POST - upload images to S3
-│   ├── batch-process/
-│   │   └── route.ts           # POST - batch process S3 images (streaming)
-│   └── view-image/
-│       └── route.ts           # GET - retrieve image from S3
-├── components/
-│   ├── Navbar.tsx             # Navigation bar component
-│   └── DatabaseHealthIndicator.tsx  # Database health indicator
-├── lib/
-│   └── logger.ts              # Shared logging utility
-├── models/
-│   └── recipe.ts              # TypeScript recipe types
-├── schemas/
-│   └── recipeSchema.ts        # Shared recipe schemas
-├── server/
-│   ├── ai/
-│   │   ├── gemini.ts          # Gemini client initialization
-│   │   ├── ocr.ts             # OCR.Space text extraction
-│   │   └── extract.ts         # Recipe extraction from OCR text
-│   ├── config/
-│   │   └── env.ts             # Server env parsing and caching
-│   ├── db/
-│   │   ├── prisma.ts          # Prisma database client
-│   │   └── db-ready.ts        # Database readiness check
-│   ├── service/
-│   │   ├── batch-processing-validation.ts
-│   │   ├── batch-processing.ts
-│   │   ├── recipes-validation.ts
-│   │   ├── recipes.ts
-│   │   ├── s3-validation.ts
-│   │   └── s3.ts
-│   ├── shared/
-│   │   ├── errors.ts
-│   │   ├── http.ts
-│   │   └── timeout.ts
-├── styles/
-│   ├── layout.styles.ts       # Layout styles
-│   ├── recipe.styles.ts       # Centralized recipe styles
-│   ├── navbar.styles.ts       # Navigation bar styles
-│   ├── upload.styles.ts       # Upload page styles
-│   ├── homePage.styles.ts     # Home page styles
-│   ├── healthPage.styles.ts   # Health page styles
-│   ├── healthIndicator.styles.ts  # Health indicator styles
-│   ├── view-image.styles.ts   # Image viewer styles
-│   └── uploadSuccessPopup.styles.ts  # Upload success popup styles
-└── layout.tsx                 # Root layout with Navbar
+```mermaid
+flowchart LR
+  A[Upload page or POST /api/upload] --> B[S3 grouped image storage]
+  B --> C[Batch Process page or POST /api/batch-process]
+  C --> D[OCR.Space]
+  D --> E[LLM candidate rotation]
+  E --> F[Prisma and PostgreSQL]
+  F --> G[Recipes UI]
 ```
 
-## 🚀 Getting Started
+## Architecture
+
+- `src/app/(pages)` contains the user-facing pages: home, upload, batch process, recipes list, and recipe detail.
+- `src/app/components` contains shared UI pieces such as the navigation shell and database health indicator.
+- `src/app/api` contains thin route handlers that parse requests and map responses.
+- `src/server/service` contains upload orchestration, batch processing, recipe persistence, and validation helpers.
+- `src/server/ai` contains OCR and LLM integrations.
+- `src/server/config` contains environment parsing.
+- `src/server/db` contains Prisma and database readiness helpers.
+- `src/schemas` contains shared Zod schemas and request limits.
+- `prisma/schema.prisma` defines the persisted `Recipe` model.
+
+The main UI flow is upload first, then batch extraction. `POST /api/recipes` still exists as a direct programmatic parse route, but it is not the primary user-facing workflow.
+
+## Tech Stack
+
+- Next.js 16 App Router
+- React 19
+- TypeScript
+- Prisma 7 and PostgreSQL
+- AWS S3
+- OCR.Space
+- Gemini, Mistral, Groq, OpenRouter, and Cerebras
+- Zod
+- Vitest
+- CSS Modules
+
+## Quick Start
 
 ### Prerequisites
 
-- Node.js 18+
-- PostgreSQL database
-- API Keys:
-  - At least one LLM provider API key: Gemini, Mistral, Groq, OpenRouter, or Cerebras
-  - OCR.Space API key
+- Node.js and pnpm installed locally
+- PostgreSQL, either local or via Docker Compose
+- An AWS S3 bucket for source images
+- One OCR.Space API key
+- At least one LLM provider API key: Gemini, Mistral, Groq, OpenRouter, or Cerebras
 
-### Installation
+### 1. Install dependencies
 
-1. **Clone the repository**
+```bash
+pnpm install
+```
 
-   ```bash
-   git clone <repository-url>
-   cd gemini-2-5-recipe-vision-parser
-   ```
+### 2. Create a local `.env`
 
-2. **Install dependencies**
+Create a root `.env` file. `prisma.config.ts` loads it for Prisma commands, and Next.js will also use it during local development. Keep this file uncommitted.
 
-   ```bash
-   pnpm install
-   ```
+```env
+# Docker Compose only
+POSTGRES_USER="postgres"
+POSTGRES_PASSWORD="postgres"
 
-3. **Set up environment variables**
-   Create a `.env.local` file in the root directory:
+# Required application settings
+DATABASE_URL="postgresql://postgres:postgres@localhost:5432/recipes"
+OCRSPACE_API_KEY="your-ocr-space-api-key"
+GEMINI_API_KEY="your-provider-api-key"
+AWS_REGION="us-east-1"
+AWS_ACCESS_KEY_ID="your-aws-access-key-id"
+AWS_SECRET_ACCESS_KEY="your-aws-secret-access-key"
+AWS_S3_BUCKET="your-s3-bucket"
 
-   ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/recipe_parser"
-   MAX_UPLOAD_IMAGE_SIZE_BYTES="5242880"
-   GEMINI_API_KEY="your-gemini-api-key"
-   GEMINI_MODEL="gemini-2.5-pro"
-   GEMINI_FALLBACK_MODELS="gemini-2.5-flash-lite,gemini-2.5-flash"
-   MISTRAL_API_KEY="your-mistral-api-key"
-   MISTRAL_MODELS="mistral-small-latest,ministral-8b-latest,open-mistral-nemo"
-   GROQ_API_KEY="your-groq-api-key"
-   GROQ_MODELS="llama-3.3-70b-versatile,qwen/qwen3-32b,llama-3.1-8b-instant"
-   OPENROUTER_API_KEY="your-openrouter-api-key"
-   OPENROUTER_MODELS="google/gemma-3-27b-it:free,meta-llama/llama-3.3-70b-instruct:free,mistralai/mistral-small-3.1-24b-instruct:free"
-   CEREBRAS_API_KEY="your-cerebras-api-key"
-   CEREBRAS_MODELS="qwen-3-32b,llama-3.3-70b"
-   GEMINI_TIMEOUT_MS="30000"
-   OCR_MAX_FILE_SIZE_BYTES="1048576"
-   OCRSPACE_API_KEY="your-ocr-space-api-key"
-   OCR_TIMEOUT_MS="30000"
-   AWS_REGION="us-east-1"
-   AWS_ACCESS_KEY_ID="your-aws-access-key"
-   AWS_SECRET_ACCESS_KEY="your-aws-secret-key"
-   AWS_S3_BUCKET="your-s3-bucket-name"
-   S3_UNPROCESSED_PREFIX="images/un-processed/"
-   S3_PROCESSED_PREFIX="images/processed/"
-   S3_SIGNED_URL_TTL_SECONDS="3600"
-   ```
+# Common optional overrides
+MAX_UPLOAD_IMAGE_SIZE_BYTES="5242880"
+GEMINI_MODEL="gemini-2.5-pro"
+GEMINI_FALLBACK_MODELS="gemini-2.5-flash-lite,gemini-2.5-flash"
+GEMINI_TIMEOUT_MS="30000"
+OCR_MAX_FILE_SIZE_BYTES="1048576"
+OCRSPACE_DAILY_LIMIT="500"
+OCRSPACE_HOURLY_LIMIT="180"
+OCR_TIMEOUT_MS="30000"
+S3_UNPROCESSED_PREFIX="images/un-processed/"
+S3_PROCESSED_PREFIX="images/processed/"
+S3_SIGNED_URL_TTL_SECONDS="3600"
+```
 
-The app builds an ordered LLM candidate roster from the configured provider/model env vars. Providers without API keys are skipped. Requests rotate across the configured providers and models, temporarily skip providers that return rate-limit signals, and retry them after the advertised cooldown expires. Non-rate-limit provider failures do not fail over to the next candidate. `GEMINI_TIMEOUT_MS` currently applies to every LLM provider attempt.
+If you prefer a provider other than Gemini, replace `GEMINI_API_KEY` with the matching provider key from the environment reference below. The app requires OCR plus at least one configured LLM provider.
 
-4. **Set up the database**
+### 3. Start PostgreSQL
 
-   ```bash
-   pnpm prisma migrate dev
-   ```
+Use an existing local database, or start the repo's Compose service:
 
-Generate the Prisma client if needed:
+```bash
+docker compose up -d recipe-db
+```
+
+The Compose file uses `POSTGRES_USER` and `POSTGRES_PASSWORD` from your local environment file and creates a database named `recipes`.
+
+### 4. Run Prisma migrations
+
+```bash
+pnpm prisma migrate dev
+```
+
+If you ever need to regenerate the client manually:
 
 ```bash
 pnpm prisma generate
 ```
 
-5. **Start the development server**
+### 5. Start the development server
 
-   ```bash
-   pnpm dev
-   ```
-
-6. **Open in browser**
-   Navigate to `http://localhost:3000`
-
-## 📖 Usage
-
-### Uploading Images to S3
-
-1. **Navigate to Upload Page** - Go to `/upload`
-2. **Select Images** - Choose one or multiple recipe photos from your device
-3. **Preview** - View thumbnail previews of selected images
-4. **Upload to S3** - Click the upload button to store images in S3
-5. **Success** - See confirmation with the number of successfully uploaded files
-
-### Parsing a Recipe
-
-1. **Navigate to Home Page** - Go to `/` to access the recipe parsing page
-2. **Select Image** - Choose a recipe photo from your device
-3. **Preview** - View the image preview before uploading
-4. **Upload & Parse** - Click "Upload & Parse" to process the recipe
-5. **View Result** - See the extracted recipe with all details
-
-### Batch Processing S3 Images
-
-1. **Navigate to Batch Process** - Go to `/batch-process`
-2. **Start Processing** - Click to scan S3 for un-processed images
-3. **Watch Progress** - Real-time streaming updates show processing status
-4. **Auto-Organization** - Successfully processed images are moved to the processed directory
-5. **Review Results** - See success/error counts and details
-
-### Managing Recipes
-
-- **View All Recipes** - Navigate to `/recipes` to browse all saved recipes
-- **Pagination** - Use page navigation to browse through recipes (24 per page)
-- **Select Recipes** - Check boxes to select individual recipes or use "Select All"
-- **Delete Recipes** - Delete single or multiple selected recipes
-- **View Recipe Details** - Click any recipe card to view the full recipe page
-- **Navigation** - Use "Back to Recipes" button to return from detail pages
-
-### Viewing S3 Images
-
-1. **Navigate to View Image** - Go to `/view-image`
-2. **Enter Object Key or S3 URI** - Paste the S3 object key or full S3 URI
-3. **Load Image** - Click to retrieve and display the image from S3
-4. **View Metadata** - See image URL and object key information
-
-## 🔌 API Endpoints
-
-### POST `/api/recipes`
-
-Upload an image and parse it as a recipe.
-
-**Request:**
-
-- Body: `multipart/form-data` with `image` file
-
-**Response:**
-
-```json
-{
-  "id": "recipe_id",
-  "recipe": {
-    "title": "Chocolate Chip Cookies",
-    "description": "Classic homemade cookies",
-    "servings": 24,
-    "prepTimeMinutes": 15,
-    "cookTimeMinutes": 12,
-    "totalTimeMinutes": 27,
-    "ingredients": [
-      {
-        "name": "Butter",
-        "quantity": 1,
-        "unit": "cup",
-        "notes": "softened"
-      }
-    ],
-    "steps": ["Mix ingredients...", "Bake..."],
-    "tags": ["dessert", "baking"],
-    "allergens": ["wheat", "dairy"]
-  }
-}
+```bash
+pnpm dev
 ```
 
-### GET `/api/recipes`
+### 6. Open the app
 
-List saved recipes with pagination support.
+Visit `http://localhost:3000`.
 
-**Query Parameters:**
+## Environment Reference
 
-- `page` (optional): Page number (default: 1)
-- `limit` (optional): Results per page (default: 12, max: 100)
+Security notes:
 
-**Response:**
+- Keep `DATABASE_URL`, AWS credentials, OCR keys, and LLM provider keys in local server-only env files.
+- Never commit secrets, paste them into issues, or expose them through `NEXT_PUBLIC_` variables.
+- Use AWS credentials scoped only to the configured bucket and required object operations.
+- Providers without API keys are skipped. At least one LLM provider key must be configured.
 
-```json
-{
-  "recipes": [
-    {
-      "id": "recipe_id",
-      "title": "Chocolate Chip Cookies",
-      "createdAt": "2026-01-08T12:00:00Z",
-      "json": {
-        /* full recipe data */
-      }
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 24,
-    "total": 150,
-    "totalPages": 7,
-    "hasNext": true,
-    "hasPrev": false
-  }
-}
-```
+### Database And Local Compose
 
-### DELETE `/api/recipes`
+| Variable            | Required            | Default | Notes                                                             |
+| ------------------- | ------------------- | ------- | ----------------------------------------------------------------- |
+| `DATABASE_URL`      | Yes                 | None    | PostgreSQL connection string used by both the app and Prisma CLI. |
+| `POSTGRES_USER`     | Docker Compose only | None    | Used by `docker compose` for the local database container.        |
+| `POSTGRES_PASSWORD` | Docker Compose only | None    | Used by `docker compose` for the local database container.        |
 
-Batch delete multiple recipes.
+### Upload And OCR
 
-**Request:**
+| Variable                      | Required | Default   | Notes                                                                                  |
+| ----------------------------- | -------- | --------- | -------------------------------------------------------------------------------------- |
+| `MAX_UPLOAD_IMAGE_SIZE_BYTES` | No       | `5242880` | Raw upload size limit in bytes. Default is 5 MiB.                                      |
+| `OCR_MAX_FILE_SIZE_BYTES`     | No       | `1048576` | OCR preprocessing size limit in bytes after conversion and resizing. Default is 1 MiB. |
+| `OCRSPACE_API_KEY`            | Yes      | None      | OCR.Space API key.                                                                     |
+| `OCRSPACE_DAILY_LIMIT`        | No       | `500`     | Daily OCR quota used by the app's validation and telemetry.                            |
+| `OCRSPACE_HOURLY_LIMIT`       | No       | `180`     | Hourly OCR quota used by the app's validation and telemetry.                           |
+| `OCR_TIMEOUT_MS`              | No       | `30000`   | OCR request timeout in milliseconds.                                                   |
 
-```json
-{
-  "ids": ["recipe_id_1", "recipe_id_2"]
-}
-```
+### LLM Providers
 
-**Response:**
+| Variable                 | Required                  | Default                                                                                                           | Notes                                                                                             |
+| ------------------------ | ------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`         | One provider key required | None                                                                                                              | Enables Gemini candidates.                                                                        |
+| `GEMINI_MODEL`           | No                        | `gemini-2.5-pro`                                                                                                  | Primary Gemini model.                                                                             |
+| `GEMINI_FALLBACK_MODELS` | No                        | Empty string                                                                                                      | Additional comma-separated Gemini models appended after `GEMINI_MODEL`.                           |
+| `GEMINI_TIMEOUT_MS`      | No                        | `30000`                                                                                                           | Timeout per provider attempt. The current implementation applies this to every LLM provider call. |
+| `MISTRAL_API_KEY`        | One provider key required | None                                                                                                              | Enables Mistral candidates when present.                                                          |
+| `MISTRAL_MODELS`         | No                        | `mistral-small-latest,ministral-8b-latest,open-mistral-nemo`                                                      | Comma-separated Mistral models.                                                                   |
+| `GROQ_API_KEY`           | One provider key required | None                                                                                                              | Enables Groq candidates when present.                                                             |
+| `GROQ_MODELS`            | No                        | `llama-3.3-70b-versatile,qwen/qwen3-32b,llama-3.1-8b-instant`                                                     | Comma-separated Groq models.                                                                      |
+| `OPENROUTER_API_KEY`     | One provider key required | None                                                                                                              | Enables OpenRouter candidates when present.                                                       |
+| `OPENROUTER_MODELS`      | No                        | `google/gemma-3-27b-it:free,meta-llama/llama-3.3-70b-instruct:free,mistralai/mistral-small-3.1-24b-instruct:free` | Comma-separated OpenRouter models.                                                                |
+| `CEREBRAS_API_KEY`       | One provider key required | None                                                                                                              | Enables Cerebras candidates when present.                                                         |
+| `CEREBRAS_MODELS`        | No                        | `qwen-3-32b,llama-3.3-70b`                                                                                        | Comma-separated Cerebras models.                                                                  |
 
-```json
-{
-  "success": true,
-  "deleted": 2,
-  "message": "Deleted 2 recipe(s)"
-}
-```
+The app builds an ordered candidate roster from the configured provider and model env vars. Providers without keys are skipped. Rate-limited providers are placed on cooldown and later candidates are attempted when available. Recoverable provider failures can also fall through to later candidates.
 
-### GET `/api/recipes/:id`
+### S3
 
-Fetch a specific recipe by ID.
+| Variable                    | Required | Default                | Notes                                                                                                              |
+| --------------------------- | -------- | ---------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `AWS_REGION`                | Yes      | None                   | AWS region for S3 operations.                                                                                      |
+| `AWS_ACCESS_KEY_ID`         | Yes      | None                   | AWS access key for server-side S3 access.                                                                          |
+| `AWS_SECRET_ACCESS_KEY`     | Yes      | None                   | AWS secret key for server-side S3 access.                                                                          |
+| `AWS_S3_BUCKET`             | Yes      | None                   | Bucket used for grouped recipe image uploads.                                                                      |
+| `S3_UNPROCESSED_PREFIX`     | No       | `images/un-processed/` | Default prefix for queued source image groups. The current Batch Process page is wired to this default queue path. |
+| `S3_PROCESSED_PREFIX`       | No       | `images/processed/`    | Reserved env setting. The current batch flow does not move completed images here.                                  |
+| `S3_SIGNED_URL_TTL_SECONDS` | No       | `3600`                 | Signed URL lifetime in seconds. Maximum allowed value is 3600.                                                     |
 
-**Response:**
+## Validation Limits
 
-```json
-{
-  "recipe": {
-    "title": "Chocolate Chip Cookies",
-    ...
-  }
-}
-```
+- Grouped uploads allow up to `10` recipe groups per request.
+- Batch extraction allows up to `10` recipe groups per run.
+- Supported upload types are GIF, JPEG, JPG, PNG, and WEBP.
+- Empty uploads are rejected.
+- Every uploaded image must belong to exactly one recipe group when using the grouped upload manifest.
+- Search queries are normalized and capped at `120` characters.
+- S3 object keys and prefixes must be relative bucket paths with no leading slash, backslashes, or `..` segments.
 
-### DELETE `/api/recipes/:id`
+## Daily Development Commands
 
-Delete a single recipe by ID.
+| Command                   | Purpose                                                                      |
+| ------------------------- | ---------------------------------------------------------------------------- |
+| `pnpm dev`                | Start the development server on port 3000.                                   |
+| `pnpm build`              | Create a production build. Runs `pnpm prisma generate` first via `prebuild`. |
+| `pnpm start`              | Start the production server.                                                 |
+| `pnpm lint`               | Run ESLint across the repo.                                                  |
+| `pnpm lint:fix`           | Run ESLint with autofixes.                                                   |
+| `pnpm typecheck`          | Run the TypeScript compiler with `--noEmit`.                                 |
+| `pnpm test`               | Run the Vitest suite.                                                        |
+| `pnpm prisma migrate dev` | Apply local migrations and update the database schema.                       |
+| `pnpm prisma generate`    | Regenerate the Prisma client manually when needed.                           |
 
-**Response:**
+## Using The App
 
-```json
-{
-  "success": true,
-  "message": "Recipe deleted"
-}
-```
+### Upload grouped recipe photos
 
-### POST `/api/upload`
+- Open `/upload`.
+- Build one card per recipe group.
+- Each group can contain one or more images.
+- Uploading stores grouped images in S3 but does not run extraction yet.
 
-Upload images to AWS S3.
+### Run batch extraction
 
-**Request:**
+- Open `/batch-process`.
+- The page loads a summary of pending recipe groups before starting a run.
+- Start extraction for some or all queued groups, up to the current batch limit.
+- The batch API streams newline-delimited JSON progress events while the run is active.
+- Successful runs save recipes and then attempt to remove completed source images from the active queue. If cleanup fails, the run can still complete with a warning.
 
-- Body: `multipart/form-data` with `image` file(s)
+### Browse and manage recipes
 
-**Response:**
+- Open `/recipes` to load the saved archive.
+- Search across titles, ingredients, tags, and instructions.
+- Delete one recipe or many selected recipes.
+- Open `/recipes/[id]` to review ingredients, instructions, tags, allergens, and timing data.
 
-```json
-{
-  "url": "https://bucket.s3.region.amazonaws.com/un-processed/filename.jpg",
-  "key": "un-processed/filename.jpg"
-}
-```
+### Monitor database readiness
 
-### GET `/api/view-image`
+- The shared app shell includes a database health indicator.
+- `GET /api/health` returns JSON readiness information that backs the indicator.
 
-Retrieve an image from S3.
+## API Surface Summary
 
-**Query Parameters:**
+| Method   | Path                 | Purpose                                               | Notes                                                                                                                                                                 |
+| -------- | -------------------- | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `POST`   | `/api/upload`        | Upload one or more image files to S3.                 | Accepts `image` or `images` form fields. Grouped uploads use an `uploadGroups` JSON manifest.                                                                         |
+| `GET`    | `/api/batch-process` | Return a summary of queued recipe groups.             | Response shape is `{ prefix, pendingRecipeCount, maxProcessLimit }`.                                                                                                  |
+| `POST`   | `/api/batch-process` | Start batch OCR and extraction.                       | Request body is `{ prefix?, limit? }`. Response is `application/x-ndjson` with `total`, `progress`, and `result` lines, plus stream-level `error` objects on failure. |
+| `GET`    | `/api/recipes`       | List saved recipes.                                   | Supports `page`, `limit`, and `query`. API default `limit` is `12`; the current UI requests `25`.                                                                     |
+| `POST`   | `/api/recipes`       | Parse uploaded images directly into one saved recipe. | Secondary programmatic shortcut. Accepts multipart image uploads.                                                                                                     |
+| `DELETE` | `/api/recipes`       | Delete multiple recipes.                              | Accepts JSON `{ ids: string[] }` with up to 100 unique IDs.                                                                                                           |
+| `GET`    | `/api/recipes/[id]`  | Fetch one recipe.                                     | Returns `{ recipe }`.                                                                                                                                                 |
+| `DELETE` | `/api/recipes/[id]`  | Delete one recipe.                                    | Returns a JSON delete result.                                                                                                                                         |
+| `GET`    | `/api/view-image`    | Return a signed URL for an S3 object.                 | Query param is `key`. Response is `{ success, url }`. This is an API helper, not a dedicated page.                                                                    |
+| `GET`    | `/api/health`        | Return database readiness.                            | Success is `{ status: "ok", db: "ready" }`. Unready state returns HTTP 503 with `{ status: "error", db: "starting" }`.                                                |
 
-- `key`: S3 object key
+## Data Model And Validation Boundaries
 
-**Response:**
+### Recipe table
 
-- Image file (binary data)
-
-### POST `/api/batch-process`
-
-Process multiple S3 images with streaming progress updates.
-
-**Response:**
-
-- Server-Sent Events stream with JSON objects:
-
-```json
-{ "type": "start", "total": 5 }
-{ "type": "processing", "current": 1, "total": 5, "key": "image1.jpg" }
-{ "type": "success", "recipeId": "abc123", "title": "Recipe Name" }
-{ "type": "error", "error": "Failed to parse" }
-{ "type": "complete", "successCount": 4, "errorCount": 1 }
-```
-
-### GET `/api/health`
-
-Check database health status.
-
-**Response:**
-
-```json
-{
-  "status": "ok",
-  "database": "connected"
-}
-```
-
-## 📝 Recipe Schema
-
-The application uses Zod for schema validation. See `src/app/lib/schema.ts` for the complete schema definition.
-
-**Key Fields:**
-
-- `title` (required): Recipe name
-- `description` (optional): Recipe description
-- `ingredients` (required): Array of ingredient objects
-- `steps` (required): Array of instruction strings
-- `servings` (optional): Number of servings
-- `prepTimeMinutes` (optional): Preparation time
-- `cookTimeMinutes` (optional): Cooking time
-- `totalTimeMinutes` (optional): Total time
-- `tags` (optional): Array of category tags
-- `allergens` (optional): Array of allergen warnings
-
-## 🗄️ Database Schema
+The Prisma model stored in `prisma/schema.prisma` is:
 
 ```prisma
 model Recipe {
-  id        String   @id @default(cuid())
-  title     String
-  json      Json           # Stores complete recipe data
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  title               String
+  sourceImageGroupKey String?  @unique
+  json                Json
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 ```
 
-## 🎨 Styling
+`sourceImageGroupKey` lets the batch flow detect and reuse an existing recipe for an already-processed image group.
 
-All styles are centralized in `src/app/styles/` for consistency and maintainability. The application uses:
+### Zod boundaries
 
-- **Color Palette**: Warm pastels (tans, beiges, warm browns)
-- **Typography**: Playfair Display (headings) and Lora (body)
-- **Responsive Design**:
-  - CSS `clamp()` for fluid, responsive sizing
-  - Dynamic grid layouts with `auto-fit` and `minmax()`
-  - Mobile-first approach with breakpoint-free design
-  - Horizontal scrolling navigation for mobile
-- **Inline Styles**: Type-safe CSS with React's CSSProperties
-- **Modular Organization**: Separate style files per page/component
+- `src/schemas/recipeSchema.ts` defines the structured recipe payload shape.
+- `src/schemas/uploadGroupSchema.ts` defines grouped upload manifests and the 10-group limit.
+- `src/schemas/recipeBatchSchema.ts` defines the batch LLM response envelope and the 10-recipe cap.
+- `src/server/service/recipes-validation.ts` defines recipe list and delete request validation.
+- `src/server/service/batch-processing-validation.ts` defines batch summary and run validation.
+- `src/server/service/s3-validation.ts` defines upload file validation and safe S3 key rules.
 
-## 🔐 Environment Configuration
+## Repository Layout
 
-| Variable                      | Description                                                                   | Required |
-| ----------------------------- | ----------------------------------------------------------------------------- | -------- |
-| `DATABASE_URL`                | PostgreSQL connection string                                                  | Yes      |
-| `MAX_UPLOAD_IMAGE_SIZE_BYTES` | Max source upload size in bytes before OCR preprocessing (default: `5242880`) | No       |
-| `OCR_MAX_FILE_SIZE_BYTES`     | Max OCR payload size in bytes after preprocessing (default: `1048576`)        | No       |
-| `GEMINI_API_KEY`              | Google Gemini API key                                                         | Yes      |
-| `GEMINI_MODEL`                | Model ID (default: `gemini-2.5-pro`)                                          | No       |
-| `GEMINI_TIMEOUT_MS`           | Gemini timeout in milliseconds (default: `30000`)                             | No       |
-| `OCRSPACE_API_KEY`            | OCR.Space API key                                                             | Yes      |
-| `OCR_TIMEOUT_MS`              | OCR timeout in milliseconds (default: `30000`)                                | No       |
-| `AWS_REGION`                  | AWS region (e.g., `us-east-1`)                                                | Yes      |
-| `AWS_ACCESS_KEY_ID`           | AWS access key                                                                | Yes      |
-| `AWS_SECRET_ACCESS_KEY`       | AWS secret access key                                                         | Yes      |
-| `AWS_S3_BUCKET`               | S3 bucket name for image storage                                              | Yes      |
-| `S3_UNPROCESSED_PREFIX`       | Prefix used for newly uploaded images (default: `images/un-processed/`)       | No       |
-| `S3_PROCESSED_PREFIX`         | Prefix used after successful batch processing (default: `images/processed/`)  | No       |
-| `S3_SIGNED_URL_TTL_SECONDS`   | Signed image URL lifetime in seconds (default: `3600`)                        | No       |
+- `src/app/(pages)` contains the user-facing pages.
+- `src/app/components` contains shared presentational components.
+- `src/app/api` contains route handlers.
+- `src/server/ai` contains OCR and LLM integrations.
+- `src/server/service` contains backend orchestration and validation helpers.
+- `src/server/config` contains env parsing.
+- `src/server/db` contains Prisma and health helpers.
+- `src/schemas` contains shared Zod schemas.
+- `src/lib` contains shared utilities such as logging.
+- `prisma` contains the schema and migrations.
+- `generated/prisma` contains the generated Prisma client.
+- `public` contains static assets.
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
-### Missing Recipes
+### The app says the service is not configured
 
-- Ensure PostgreSQL is running and `DATABASE_URL` is correct
-- Run `pnpm prisma migrate dev` to set up the database
+- Check `DATABASE_URL`, `OCRSPACE_API_KEY`, AWS credentials, and at least one LLM provider key.
+- Confirm the variables are in a local `.env` file that Prisma and Next.js can read.
+- Check server logs first. Do not paste full secrets, connection strings, or signed URLs into logs, tickets, or screenshots.
 
-### Parse Failures
+### Docker Compose database startup fails
 
-- Check that image is a clear, legible recipe
-- Verify API keys are valid and have sufficient quota
-- Check browser console for detailed error messages
+- Make sure `POSTGRES_USER` and `POSTGRES_PASSWORD` are defined before running `docker compose up`.
+- Confirm `DATABASE_URL` points to `localhost:5432/recipes` if you use the provided Compose service.
 
-### Styling Issues
+### Uploads are rejected
 
-- Clear Next.js cache: `rm -rf .next`
-- Rebuild: `pnpm build`
+- Confirm the file type is GIF, JPEG, JPG, PNG, or WEBP.
+- Confirm the file is not empty.
+- Confirm the file is within `MAX_UPLOAD_IMAGE_SIZE_BYTES`. The default is 5 MiB.
 
-## 📦 Dependencies
+### The batch page shows no queued recipe groups
 
-| Package            | Version | Purpose               |
-| ------------------ | ------- | --------------------- |
-| next               | 16.1.1  | React framework       |
-| react              | 19.2.3  | UI library            |
-| @google/genai      | ^1.35.0 | Gemini API client     |
-| @aws-sdk/client-s3 | ^3.x    | AWS S3 client         |
-| prisma             | ^7.2.0  | ORM for database      |
-| zod                | ^4.3.5  | Schema validation     |
-| dotenv             | ^17.2.3 | Environment variables |
+- Confirm the upload step completed successfully.
+- Confirm the images were written under `S3_UNPROCESSED_PREFIX`.
+- The current Batch Process page is wired to `images/un-processed/`. If you changed the queue prefix in server config, the page will not automatically follow that custom value.
 
-## 🛠️ Development Scripts
+### OCR or extraction fails intermittently
+
+- Check provider quotas, rate limits, and timeout settings.
+- OCR and LLM providers can fail independently.
+- Rate-limited LLM providers enter cooldown and later candidates may be attempted automatically.
+
+### Prisma and the generated client are out of sync
 
 ```bash
-pnpm dev         # Start development server (http://localhost:3000)
-pnpm build       # Build for production
-pnpm start       # Start production server
-pnpm lint        # Run ESLint
-pnpm typecheck   # Run the TypeScript compiler
-pnpm test        # Run the Vitest suite
+pnpm prisma migrate dev
+pnpm prisma generate
 ```
 
-## 📚 Additional Resources
+## Contributing
 
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Google Gemini API](https://ai.google.dev/)
-- [OCR.Space API](https://ocr.space/ocrapi)
-- [Prisma Documentation](https://www.prisma.io/docs/)
-- [Zod Documentation](https://zod.dev/)
+This is an internal project. Keep documentation, API claims, and environment guidance aligned with the current repository state.
 
-## 📄 License
+## License
 
 This project is private and proprietary.
-
-## 👥 Contributing
-
-Internal project. For questions or issues, contact the development team.
-
----
-
-**Last Updated:** January 10, 2026  
-**Version:** 1.0.0
