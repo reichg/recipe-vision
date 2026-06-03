@@ -2,7 +2,7 @@ name: Base-updated PR CI
 
 on:
   push:
-    branches: [main]
+    branches: [master]
 
 permissions:
   contents: read
@@ -20,7 +20,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           prs=$(gh pr list \
-            --base main \
+            --base master \
             --state open \
             --json number,headRefOid \
             --jq '[.[] | {number, sha: .headRefOid}]')
@@ -47,7 +47,7 @@ jobs:
             repos/${{ github.repository }}/statuses/${{ matrix.pr.sha }} \
             -f state=pending \
             -f context=base-updated-ci \
-            -f description="Testing this PR against latest main" \
+            -f description="Testing this PR against latest master" \
             -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Checkout PR merge ref
@@ -71,7 +71,7 @@ jobs:
             repos/${{ github.repository }}/statuses/${{ matrix.pr.sha }} \
             -f state=success \
             -f context=base-updated-ci \
-            -f description="Passed against latest main" \
+            -f description="Passed against latest master" \
             -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
 
       - name: Mark PR status as failure
@@ -84,5 +84,5 @@ jobs:
             repos/${{ github.repository }}/statuses/${{ matrix.pr.sha }} \
             -f state=failure \
             -f context=base-updated-ci \
-            -f description="Failed against latest main" \
+            -f description="Failed against latest master" \
             -f target_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
