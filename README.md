@@ -346,6 +346,8 @@ pnpm prisma migrate dev
 pnpm prisma generate
 ```
 
+test change 2
+
 ## Contributing
 
 This is an internal project. Keep documentation, API claims, and environment guidance aligned with the current repository state.
