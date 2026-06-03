@@ -32,8 +32,11 @@
     "tesseract.js": "^7.0.0",
     "zod": "^4.3.5"
   },
+  "engines": {
+    "node": ">=24"
+  },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^24",
     "@types/pg": "^8.16.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
